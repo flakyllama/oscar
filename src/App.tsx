@@ -22,8 +22,14 @@ import { Milestones } from './screens/Milestones';
 import { Settings } from './screens/Settings';
 import { TileDemo } from './screens/TileDemo';
 import { ArrowRightIcon, HistoryIcon } from './components/Icons';
+import { getSyncEngine } from './sync/engine';
 
 maybeSeed();
+
+// Dev-only console access for debugging/testing the store and sync.
+if (import.meta.env.DEV) {
+  (window as unknown as Record<string, unknown>).__oscar = { getStore, getSyncEngine };
+}
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -141,6 +147,11 @@ function AppInner() {
   // First-visit hello (the prototype greets with confetti on load).
   useEffect(() => {
     setGlyphEvent(mkEvent('confetti', 2400, true));
+  }, []);
+
+  // File sync engine (no-op where the File System Access API is missing).
+  useEffect(() => {
+    getSyncEngine().start();
   }, []);
 
   // Theme side effects.

@@ -2,18 +2,20 @@
 // versioning, cross-tab sync, quota-safe saves, soft-delete trash and
 // an optional passcode gate (entries encrypted at rest).
 
-import { type DayKey } from './dates';
+import { type DayKey, dateOf } from './dates';
 import { words, type Entries, type Times, type Hours } from './selectors';
 import {
   type LockMeta,
+  type EncryptedBlob,
   isEncryptedBlob,
   makeLockMeta,
   verifyPasscode,
   encryptJson,
   decryptJson,
 } from './crypto';
+import type { SyncConflict, SyncDayRecord, SyncSettings } from '../sync/merge';
 
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 
 export type Theme = 'dark' | 'light';
 
@@ -29,6 +31,19 @@ export interface TrashItem {
   deletedAt: number;
 }
 
+// Per-day edit metadata driving sync: when a day was last changed, and
+// whether it's a tombstone (cleared day).
+export interface DayMeta {
+  updatedAt: number;
+  deletedAt?: number;
+}
+
+export interface SyncFileMeta {
+  deviceId: string;
+  lastSyncAt: number;
+  fileName: string | null;
+}
+
 export interface StoreState {
   entries: Entries;
   times: Times;
@@ -40,6 +55,11 @@ export interface StoreState {
   name: string;
   lockEnabled: boolean;
   locked: boolean; // lock enabled and not yet unlocked this session
+  dayMeta: Record<DayKey, DayMeta>;
+  pendingSync: Record<DayKey, number>; // dayKey → updatedAt awaiting sync
+  settingsMeta: { updatedAt: number };
+  syncConflicts: SyncConflict[];
+  syncMeta: SyncFileMeta;
 }
 
 export interface SaveFailure {
@@ -58,6 +78,11 @@ export const KEYS = {
   trash: 'daybook.trash',
   lock: 'daybook.lock',
   schema: 'daybook.schemaVersion',
+  dayMeta: 'daybook.dayMeta',
+  pendingSync: 'daybook.syncPending',
+  settingsMeta: 'daybook.settingsMeta',
+  syncConflicts: 'daybook.syncConflicts',
+  syncMeta: 'daybook.syncMeta',
 } as const;
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> & {
@@ -117,6 +142,15 @@ export class Store {
       name: this.storage.getItem(KEYS.name) || '',
       lockEnabled: !!this.lockMeta,
       locked,
+      dayMeta: readJson<Record<DayKey, DayMeta>>(this.storage, KEYS.dayMeta, {}),
+      pendingSync: readJson<Record<DayKey, number>>(this.storage, KEYS.pendingSync, {}),
+      settingsMeta: readJson<{ updatedAt: number }>(this.storage, KEYS.settingsMeta, { updatedAt: 0 }),
+      syncConflicts: readJson<SyncConflict[]>(this.storage, KEYS.syncConflicts, []),
+      syncMeta: readJson<SyncFileMeta>(this.storage, KEYS.syncMeta, {
+        deviceId: '',
+        lastSyncAt: 0,
+        fileName: null,
+      }),
     };
   }
 
@@ -140,6 +174,23 @@ export class Store {
         if (changed) {
           this.state = { ...this.state, times };
           this.persist(KEYS.times, times);
+        }
+      },
+      // 1 → 2: backfill per-day edit metadata for sync. Legacy entries
+      // get their calendar day (noon local) as the best-guess edit
+      // time, so a fresher copy elsewhere wins silently on first sync.
+      () => {
+        const dayMeta = { ...this.state.dayMeta };
+        let changed = false;
+        Object.keys(this.state.entries).forEach((k) => {
+          if (!dayMeta[k]) {
+            dayMeta[k] = { updatedAt: dateOf(k).getTime() + 12 * 3600 * 1000 };
+            changed = true;
+          }
+        });
+        if (changed) {
+          this.state = { ...this.state, dayMeta };
+          this.persist(KEYS.dayMeta, dayMeta);
         }
       },
     ];
@@ -218,8 +269,24 @@ export class Store {
 
   // ── Mutations ───────────────────────────────────────────────
 
+  // Stamp a day's edit metadata and enqueue it for sync.
+  private touchDay(key: DayKey, deletedAt?: number): Pick<StoreState, 'dayMeta' | 'pendingSync'> {
+    const now = Date.now();
+    const dayMeta = { ...this.state.dayMeta, [key]: deletedAt ? { updatedAt: now, deletedAt } : { updatedAt: now } };
+    const pendingSync = { ...this.state.pendingSync, [key]: now };
+    this.persist(KEYS.dayMeta, dayMeta);
+    this.persist(KEYS.pendingSync, pendingSync);
+    return { dayMeta, pendingSync };
+  }
+
+  private touchSettings(): { updatedAt: number } {
+    const settingsMeta = { updatedAt: Date.now() };
+    this.persist(KEYS.settingsMeta, settingsMeta);
+    return settingsMeta;
+  }
+
   setEntry(key: DayKey, text: string) {
-    this.setState({ ...this.state, entries: { ...this.state.entries, [key]: text } });
+    this.setState({ ...this.state, entries: { ...this.state.entries, [key]: text }, ...this.touchDay(key) });
     this.persistEntries();
   }
 
@@ -236,17 +303,18 @@ export class Store {
   }
 
   setGoal(goal: number) {
-    this.setState({ ...this.state, goal });
+    this.setState({ ...this.state, goal, settingsMeta: this.touchSettings() });
     this.persist(KEYS.goal, String(goal));
   }
 
+  // Theme is a per-device preference and intentionally not synced.
   setTheme(theme: Theme) {
     this.setState({ ...this.state, theme });
     this.persist(KEYS.theme, theme);
   }
 
   setName(name: string) {
-    this.setState({ ...this.state, name });
+    this.setState({ ...this.state, name, settingsMeta: this.touchSettings() });
     this.persist(KEYS.name, name);
   }
 
@@ -256,14 +324,15 @@ export class Store {
     this.persist(KEYS.sessions, sessions);
   }
 
-  // Soft delete: the entry moves to the trash and can be restored.
+  // Soft delete: the entry moves to the trash (restorable) and leaves
+  // a tombstone so the deletion propagates through sync.
   softDeleteDay(key: DayKey) {
     const text = this.state.entries[key];
     if (!text) return;
     const entries = { ...this.state.entries };
     delete entries[key];
     const trash = { ...this.state.trash, [key]: { text, deletedAt: Date.now() } };
-    this.setState({ ...this.state, entries, trash });
+    this.setState({ ...this.state, entries, trash, ...this.touchDay(key, Date.now()) });
     this.persistEntries();
     this.persist(KEYS.trash, trash);
   }
@@ -276,17 +345,177 @@ export class Store {
     // Don't clobber text written since the delete.
     const existing = this.state.entries[key];
     const entries = { ...this.state.entries, [key]: existing || item.text };
-    this.setState({ ...this.state, entries, trash });
+    this.setState({ ...this.state, entries, trash, ...this.touchDay(key) });
     this.persistEntries();
     this.persist(KEYS.trash, trash);
   }
 
   replaceData(patch: Partial<Pick<StoreState, 'entries' | 'times' | 'hours' | 'sessions'>>) {
-    this.setState({ ...this.state, ...patch });
+    let stamps: Partial<StoreState> = {};
+    if (patch.entries) {
+      // Imported/changed days need fresh edit metadata so sync picks
+      // them up.
+      const now = Date.now();
+      const dayMeta = { ...this.state.dayMeta };
+      const pendingSync = { ...this.state.pendingSync };
+      Object.keys(patch.entries).forEach((k) => {
+        if (patch.entries![k] !== this.state.entries[k]) {
+          dayMeta[k] = { updatedAt: now };
+          pendingSync[k] = now;
+        }
+      });
+      this.persist(KEYS.dayMeta, dayMeta);
+      this.persist(KEYS.pendingSync, pendingSync);
+      stamps = { dayMeta, pendingSync };
+    }
+    this.setState({ ...this.state, ...patch, ...stamps });
     if (patch.entries) this.persistEntries();
     if (patch.times) this.persist(KEYS.times, patch.times);
     if (patch.hours) this.persist(KEYS.hours, patch.hours);
     if (patch.sessions) this.persist(KEYS.sessions, patch.sessions);
+  }
+
+  // ── Sync support ────────────────────────────────────────────
+
+  // Local state as the merge module's shape. Tombstones come from
+  // dayMeta (cleared days keep no entry text).
+  syncSnapshot(): { days: Record<DayKey, SyncDayRecord>; hours: Hours; settings: SyncSettings } {
+    const days: Record<DayKey, SyncDayRecord> = {};
+    const keys = new Set([...Object.keys(this.state.entries), ...Object.keys(this.state.dayMeta)]);
+    keys.forEach((k) => {
+      const meta = this.state.dayMeta[k];
+      const text = this.state.entries[k] || '';
+      if (!meta && !words(text)) return;
+      days[k] = {
+        text: meta?.deletedAt ? '' : text,
+        time: this.state.times[k] || 0,
+        updatedAt: meta?.updatedAt ?? 0,
+        ...(meta?.deletedAt ? { deletedAt: meta.deletedAt } : {}),
+      };
+    });
+    return {
+      days,
+      hours: this.state.hours,
+      settings: { goal: this.state.goal, name: this.state.name, updatedAt: this.state.settingsMeta.updatedAt },
+    };
+  }
+
+  // Apply the merged remote-winning records. Never enqueues pending
+  // (this data is already in the file), and local text overwritten by
+  // a remote win or tombstone is preserved in the trash.
+  applyRemote(
+    days: Record<DayKey, SyncDayRecord>,
+    hours: Hours | null,
+    settings: SyncSettings | null,
+  ) {
+    const entries = { ...this.state.entries };
+    const times = { ...this.state.times };
+    const dayMeta = { ...this.state.dayMeta };
+    let trash = this.state.trash;
+    Object.keys(days).forEach((k) => {
+      const rec = days[k];
+      const localText = entries[k];
+      if (rec.deletedAt) {
+        if (localText && localText !== rec.text) {
+          trash = { ...trash, [k]: { text: localText, deletedAt: rec.deletedAt } };
+        }
+        delete entries[k];
+        dayMeta[k] = { updatedAt: rec.updatedAt, deletedAt: rec.deletedAt };
+      } else {
+        entries[k] = rec.text;
+        dayMeta[k] = { updatedAt: rec.updatedAt };
+      }
+      times[k] = Math.max(times[k] || 0, rec.time);
+    });
+    const next: StoreState = {
+      ...this.state,
+      entries,
+      times,
+      dayMeta,
+      trash,
+      ...(hours ? { hours } : {}),
+      ...(settings
+        ? { goal: settings.goal, name: settings.name, settingsMeta: { updatedAt: settings.updatedAt } }
+        : {}),
+    };
+    this.setState(next);
+    this.persistEntries();
+    this.persist(KEYS.times, times);
+    this.persist(KEYS.dayMeta, dayMeta);
+    this.persist(KEYS.trash, trash);
+    if (hours) this.persist(KEYS.hours, hours);
+    if (settings) {
+      this.persist(KEYS.goal, String(settings.goal));
+      this.persist(KEYS.name, settings.name);
+      this.persist(KEYS.settingsMeta, { updatedAt: settings.updatedAt });
+    }
+  }
+
+  // Drop pending entries that were captured by a sync snapshot taken
+  // at `snapshotAt` — edits made since then stay queued.
+  clearPending(snapshotAt: number) {
+    const pendingSync: Record<DayKey, number> = {};
+    Object.keys(this.state.pendingSync).forEach((k) => {
+      if (this.state.pendingSync[k] > snapshotAt) pendingSync[k] = this.state.pendingSync[k];
+    });
+    this.setState({ ...this.state, pendingSync });
+    this.persist(KEYS.pendingSync, pendingSync);
+  }
+
+  addSyncConflicts(conflicts: SyncConflict[]) {
+    if (!conflicts.length) return;
+    const merged = [...this.state.syncConflicts.filter((c) => !conflicts.some((n) => n.dayKey === c.dayKey)), ...conflicts];
+    this.setState({ ...this.state, syncConflicts: merged });
+    this.persist(KEYS.syncConflicts, merged);
+  }
+
+  dismissSyncConflict(dayKey: DayKey) {
+    const syncConflicts = this.state.syncConflicts.filter((c) => c.dayKey !== dayKey);
+    this.setState({ ...this.state, syncConflicts });
+    this.persist(KEYS.syncConflicts, syncConflicts);
+  }
+
+  // Swap in the conflict's losing text; the currently-kept text goes
+  // to the trash so nothing is lost.
+  restoreConflictVersion(dayKey: DayKey) {
+    const c = this.state.syncConflicts.find((x) => x.dayKey === dayKey);
+    if (!c) return;
+    const current = this.state.entries[dayKey];
+    if (current && current !== c.loserText) {
+      const trash = { ...this.state.trash, [dayKey]: { text: current, deletedAt: Date.now() } };
+      this.persist(KEYS.trash, trash);
+      this.state = { ...this.state, trash };
+    }
+    this.dismissSyncConflict(dayKey);
+    this.setEntry(dayKey, c.loserText);
+  }
+
+  setSyncMeta(patch: Partial<SyncFileMeta>) {
+    const syncMeta = { ...this.state.syncMeta, ...patch };
+    this.setState({ ...this.state, syncMeta });
+    this.persist(KEYS.syncMeta, syncMeta);
+  }
+
+  // Stable per-device id (created on first use).
+  deviceId(): string {
+    if (!this.state.syncMeta.deviceId) {
+      this.setSyncMeta({ deviceId: Math.random().toString(36).slice(2, 10) });
+    }
+    return this.state.syncMeta.deviceId;
+  }
+
+  // Seal/open the sync payload with the passcode key when the lock is
+  // enabled, so the sync file is as protected as localStorage.
+  async sealForSync(value: unknown): Promise<unknown> {
+    return this.lockKey ? encryptJson(value, this.lockKey) : value;
+  }
+
+  async openFromSync<T>(payload: unknown): Promise<T> {
+    if (isEncryptedBlob(payload)) {
+      if (!this.lockKey) throw new Error('Sync file is encrypted — unlock with your passcode first.');
+      return decryptJson<T>(payload as EncryptedBlob, this.lockKey);
+    }
+    return payload as T;
   }
 
   // ── Passcode gate ───────────────────────────────────────────
