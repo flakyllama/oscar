@@ -100,8 +100,13 @@ src/
 │   └── useStore.ts      useSyncExternalStore binding
 ├── sync/
 │   ├── merge.ts         Pure LWW-per-day merge with tombstones
-│   └── engine.ts        File System Access sync engine
-└── styles/             tokens.css (theme) + app.css (interaction states)
+│   ├── identity.ts      Master key → HKDF account/auth/enc; sync-key codec
+│   ├── target.ts        SyncTarget interface + IndexedDB persistence
+│   ├── fileTarget.ts    File System Access backend
+│   ├── cloudTarget.ts   Zero-knowledge Worker backend
+│   └── engine.ts        Orchestrator: pull → merge → apply → push
+├── styles/             tokens.css (theme) + app.css (interaction states)
+└── ../worker/          Cloudflare Worker + KV sync backend (deployed separately)
 ```
 
 ### Data & privacy
@@ -122,26 +127,39 @@ dates** (`YYYY-MM-DD`), and all date math is DST-safe — see the tests in
 
 ### Sync (optional)
 
-Local-first is the source of truth. Sync writes the journal to a single
-JSON file **you own**, via the File System Access API — drop that file in
-an iCloud/Dropbox/Drive folder and it travels between devices with no
-server involved.
+Local-first is the source of truth; sync just exchanges one document
+through a backend. Two backends sit behind a shared
+[`SyncTarget`](src/sync/target.ts) interface and the same merge core:
+
+- **Cloud** (default, every browser) — a zero-knowledge
+  [Cloudflare Worker](worker/) over KV. Everything derives from one
+  256-bit **master sync key**, shown once as a copyable code
+  (`oscar1-…`); the client derives an account id, a bearer token, and an
+  AES-GCM key from it via HKDF. The server stores only ciphertext and a
+  *hash* of the auth token, so it can never read your journal. Add a
+  device by pasting the same key.
+- **File** (Chromium only) — a JSON file **you own**, via the File System
+  Access API; drop it in an iCloud/Dropbox/Drive folder for no-server
+  sync. Encryption here is the optional local passcode.
+
+Both share:
 
 - Last-write-wins per day-key, with tombstones so deletions propagate
   instead of resurrecting.
-- Offline-first: edits queue locally and push when the file is reachable;
-  remote changes are picked up by polling the file.
+- Offline-first: edits queue locally and push when the backend is
+  reachable; remote changes are picked up by polling.
 - Concurrent edits to the same day surface as conflicts in Settings, with
-  the losing version preserved (never silently dropped).
-- With a passcode set, the sync file's contents are AES-GCM ciphertext.
+  the losing version preserved (never silently dropped). A push that
+  races another device (version conflict) re-pulls and re-merges.
 
-The merge logic is pure and unit-tested ([`merge.test.ts`](src/sync/merge.test.ts)).
+The merge and identity logic are pure and unit-tested
+([`merge.test.ts`](src/sync/merge.test.ts),
+[`identity.test.ts`](src/sync/identity.test.ts)); the Worker has its own
+handler tests ([`worker/index.test.ts`](worker/index.test.ts)).
 
-> **Browser support:** the File System Access API is Chromium-only
-> (Chrome, Edge, Arc, Brave). In Safari and Firefox the Sync panel
-> explains this; the JSON backup export/import is the cross-browser
-> fallback. Backend options for true cross-browser sync are weighed in a
-> separate decision brief.
+**Deploying the cloud backend** is a few commands — see
+[`worker/README.md`](worker/README.md). Point the app at your Worker with
+`VITE_SYNC_ENDPOINT` at build time, or paste the URL into the Sync panel.
 
 ## Testing
 

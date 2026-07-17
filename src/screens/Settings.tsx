@@ -1,13 +1,13 @@
 // Settings: goal, name, theme, focus, Markdown export — plus data
 // management (JSON backup/import, storage meter, trash, passcode).
 
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { getStore, Store } from '../data/store';
 import { useStoreState } from '../data/useStore';
 import { dateOf, todayKey } from '../data/dates';
 import { words, entryKeys } from '../data/selectors';
 import { makeBackup, parseBackup, mergeBackup } from '../data/backup';
-import { getSyncEngine } from '../sync/engine';
+import { SyncPanel } from './SyncPanel';
 
 const MONTHS_FULL = [
   'January', 'February', 'March', 'April', 'May', 'June',
@@ -80,27 +80,6 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
 
   const dark = state.theme === 'dark';
   const trashKeys = Object.keys(state.trash).sort().reverse();
-
-  const engine = getSyncEngine();
-  const sync = useSyncExternalStore(engine.subscribe, engine.getStatus);
-  const pendingCount = Object.keys(state.pendingSync).length;
-  const lastSyncAt = state.syncMeta.lastSyncAt;
-  const agoLabel = (t: number) => {
-    const s = Math.max(0, Math.round((Date.now() - t) / 1000));
-    if (s < 60) return 'just now';
-    if (s < 3600) return Math.round(s / 60) + 'm ago';
-    if (s < 86400) return Math.round(s / 3600) + 'h ago';
-    return Math.round(s / 86400) + 'd ago';
-  };
-  const syncCaption = !sync.supported
-    ? 'Sync to a file you own — needs a Chromium browser (File System Access API)'
-    : !sync.connected
-      ? 'Sync to a file you own — put it in an iCloud/Dropbox folder for multi-device'
-      : sync.needsPermission
-        ? (state.syncMeta.fileName || 'sync file') + ' — permission needed after reload'
-        : (state.syncMeta.fileName || 'sync file') +
-          (lastSyncAt ? ' · synced ' + agoLabel(lastSyncAt) : '') +
-          (pendingCount ? ' · ' + pendingCount + ' pending' : '');
 
   const onImportFile = async (file: File) => {
     try {
@@ -306,83 +285,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
         Data
       </div>
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-        <div style={rowStyle}>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="t-body-strong">Sync</div>
-            <div className="t-caption" style={{ color: sync.error ? 'var(--danger)' : 'var(--muted)', marginTop: 2 }}>
-              {sync.error || syncCaption}
-            </div>
-            {state.syncConflicts.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-                {state.syncConflicts.map((c) => {
-                  const dd = dateOf(c.dayKey);
-                  return (
-                    <div key={c.dayKey} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span className="t-mono" style={{ fontSize: 12, color: 'var(--danger)', minWidth: 90 }}>
-                        {MONTHS_FULL[dd.getMonth()].slice(0, 3)} {dd.getDate()}, {dd.getFullYear()}
-                      </span>
-                      <span
-                        className="t-caption"
-                        style={{
-                          color: 'var(--muted-2)',
-                          flex: 1,
-                          minWidth: 0,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        kept the {c.kept === 'local' ? 'version from this device' : 'version from another device'} · other:{' '}
-                        {c.loserText.split('\n')[0] || '(cleared)'}
-                      </span>
-                      <button
-                        className="ghost-btn"
-                        style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }}
-                        onClick={() => store.restoreConflictVersion(c.dayKey)}
-                      >
-                        Keep other
-                      </button>
-                      <button
-                        className="ghost-btn"
-                        style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }}
-                        onClick={() => store.dismissSyncConflict(c.dayKey)}
-                      >
-                        Dismiss
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-          {sync.supported && (
-            <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
-              {!sync.connected ? (
-                <>
-                  <button className="ghost-btn" style={ghostBtnStyle} onClick={() => engine.connectNew().catch(() => {})}>
-                    Create file
-                  </button>
-                  <button className="ghost-btn" style={ghostBtnStyle} onClick={() => engine.connectExisting().catch(() => {})}>
-                    Use existing
-                  </button>
-                </>
-              ) : sync.needsPermission ? (
-                <button className="ghost-btn" style={ghostBtnStyle} onClick={() => engine.reconnect()}>
-                  Reconnect
-                </button>
-              ) : (
-                <>
-                  <button className="ghost-btn" style={ghostBtnStyle} onClick={() => engine.syncNow()}>
-                    {sync.syncing ? 'Syncing…' : 'Sync now'}
-                  </button>
-                  <button className="ghost-btn" style={ghostBtnStyle} onClick={() => engine.disconnect()}>
-                    Disconnect
-                  </button>
-                </>
-              )}
-            </div>
-          )}
-        </div>
+        <SyncPanel />
         <div style={rowStyle}>
           <div>
             <div className="t-body-strong">Backup</div>
