@@ -76,7 +76,7 @@ export function Toolbar({ view, paletteOpen, chromeOpacity, onGoEditor, onGo, on
 
   return (
     <div
-      className="chrome-fade"
+      className="chrome-fade toolbar"
       style={{
         position: 'relative',
         display: 'flex',
@@ -105,22 +105,22 @@ export function Toolbar({ view, paletteOpen, chromeOpacity, onGoEditor, onGo, on
       />
       {btn('editor', onGoEditor, (
         <>
-          <PencilIcon />Write<span className="kbd">⌥ W</span>
+          <PencilIcon /><span className="nav-label">Write</span><span className="kbd">⌥ W</span>
         </>
       ))}
       {btn('home', () => onGo('home'), (
         <>
-          <ListIcon />Entries<span className="kbd">⌥ E</span>
+          <ListIcon /><span className="nav-label">Entries</span><span className="kbd">⌥ E</span>
         </>
       ))}
       {btn('stats', () => onGo('stats'), (
         <>
-          <ChartIcon />Stats<span className="kbd">⌥ S</span>
+          <ChartIcon /><span className="nav-label">Stats</span><span className="kbd">⌥ S</span>
         </>
       ))}
       {btn('commands', onOpenPalette, (
         <>
-          <CommandIcon />Commands<span className="kbd">⌘ K</span>
+          <CommandIcon /><span className="nav-label">Commands</span><span className="kbd">⌘ K</span>
         </>
       ))}
       {btn('milestones', () => onGo('milestones'), <TrophyIcon />, 'Milestones', 'Milestones')}

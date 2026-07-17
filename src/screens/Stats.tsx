@@ -248,7 +248,7 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
       </div>
 
       {/* Stat tiles */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4, marginTop: 24 }}>
+      <div className="stat-tiles" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: 4, marginTop: 24 }}>
         {statTile(
           'Streak',
           <>
@@ -363,7 +363,7 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
       </div>
 
       {/* Writing hours + Weekdays */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginTop: 4 }}>
+      <div className="two-up" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4, marginTop: 4 }}>
         <div style={cardStyle}>
           <div className="t-card-title">Writing hours</div>
           <div className="t-caption" style={{ color: 'var(--muted)' }}>
@@ -503,7 +503,7 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
               <span />
             </div>
           </div>
-          <div>
+          <div className="hm-scroll" style={{ overflowX: 'auto' }}>
             <div style={{ position: 'relative', height: 20 }}>
               {hmMonths.map((hmm, i) => (
                 <span key={i} className="t-mono" style={{ position: 'absolute', left: hmm.left, top: 0, fontSize: 9, color: 'var(--muted-2)' }}>

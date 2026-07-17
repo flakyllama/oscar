@@ -449,6 +449,7 @@ export function Write({
         {milestones.map((mk) => (
           <div
             key={mk.label}
+            className="margin-milestone"
             style={{
               position: 'absolute',
               left: -44,
