@@ -66,6 +66,8 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [passMsg, setPassMsg] = useState<string | null>(null);
   const [passInput, setPassInput] = useState('');
+  const [newPassInput, setNewPassInput] = useState('');
+  const [changingPass, setChangingPass] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Storage usage meter.
@@ -133,7 +135,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
         animation: 'db-fade .25s ease-out',
       }}
     >
-      <div className="t-page-title">Settings</div>
+      <h1 className="t-page-title">Settings</h1>
       <div className="t-body" style={{ color: 'var(--muted)', marginTop: 4 }}>
         Make Oscar yours
       </div>
@@ -420,14 +422,43 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
               value={passInput}
               onChange={(e) => setPassInput(e.target.value)}
               placeholder={state.lockEnabled ? 'Current passcode' : 'New passcode'}
+              aria-label={state.lockEnabled ? 'Current passcode' : 'New passcode'}
               style={{ ...inputStyle, width: 140, fontFamily: 'var(--font-sans)' }}
             />
+            {changingPass && (
+              <input
+                type="password"
+                value={newPassInput}
+                onChange={(e) => setNewPassInput(e.target.value)}
+                placeholder="New passcode"
+                aria-label="New passcode"
+                style={{ ...inputStyle, width: 140, fontFamily: 'var(--font-sans)' }}
+              />
+            )}
+            {state.lockEnabled && !changingPass && (
+              <button
+                className="ghost-btn"
+                style={ghostBtnStyle}
+                onClick={() => {
+                  setChangingPass(true);
+                  setPassMsg(null);
+                }}
+              >
+                Change
+              </button>
+            )}
             <button
               className="ghost-btn"
               style={ghostBtnStyle}
               onClick={async () => {
                 if (!passInput) return;
-                if (state.lockEnabled) {
+                if (changingPass) {
+                  if (!newPassInput) return;
+                  const ok = await store.changePasscode(passInput, newPassInput);
+                  setPassMsg(ok ? 'Passcode changed.' : 'Wrong current passcode.');
+                  if (ok) setChangingPass(false);
+                  setNewPassInput('');
+                } else if (state.lockEnabled) {
                   const ok = await store.disablePasscode(passInput);
                   setPassMsg(ok ? 'Passcode removed.' : 'Wrong passcode.');
                 } else {
@@ -437,8 +468,22 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
                 setPassInput('');
               }}
             >
-              {state.lockEnabled ? 'Remove' : 'Set'}
+              {changingPass ? 'Save' : state.lockEnabled ? 'Remove' : 'Set'}
             </button>
+            {changingPass && (
+              <button
+                className="ghost-btn"
+                style={ghostBtnStyle}
+                onClick={() => {
+                  setChangingPass(false);
+                  setPassInput('');
+                  setNewPassInput('');
+                  setPassMsg(null);
+                }}
+              >
+                Cancel
+              </button>
+            )}
           </div>
         </div>
       </div>

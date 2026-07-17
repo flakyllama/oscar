@@ -242,7 +242,7 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
         animation: 'db-fade .25s ease-out',
       }}
     >
-      <div className="t-page-title">Stats</div>
+      <h1 className="t-page-title">Stats</h1>
       <div className="t-body" style={{ color: 'var(--muted)', marginTop: 4 }}>
         How your writing adds up
       </div>

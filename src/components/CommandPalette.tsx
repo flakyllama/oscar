@@ -3,6 +3,7 @@
 // hover and ↑↓, Enter runs.
 
 import { useEffect, useRef, useState } from 'react';
+import { useFocusTrap } from './useFocusTrap';
 
 export interface PaletteAction {
   cat: string;
@@ -70,6 +71,8 @@ export function CommandPalette({ actions, onClose, onGoDate }: CommandPalettePro
   const [query, setQuery] = useState('');
   const [index, setIndex] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useFocusTrap(dialogRef);
 
   useEffect(() => {
     const t = setTimeout(() => inputRef.current?.focus(), 30);
@@ -112,6 +115,10 @@ export function CommandPalette({ actions, onClose, onGoDate }: CommandPalettePro
       }}
     >
       <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command menu"
         onClick={(e) => e.stopPropagation()}
         style={{
           width: 440,
@@ -143,6 +150,12 @@ export function CommandPalette({ actions, onClose, onGoDate }: CommandPalettePro
             }
           }}
           placeholder="Type a command"
+          role="combobox"
+          aria-expanded="true"
+          aria-controls="palette-listbox"
+          aria-activedescendant={filtered.length ? `palette-opt-${idx}` : undefined}
+          aria-autocomplete="list"
+          aria-label="Type a command"
           className="no-focus-ring"
           style={{
             outline: 'none',
@@ -158,7 +171,7 @@ export function CommandPalette({ actions, onClose, onGoDate }: CommandPalettePro
             fontSize: 14,
           }}
         />
-        <div style={{ padding: 6, maxHeight: 280, overflowY: 'auto' }}>
+        <div id="palette-listbox" role="listbox" aria-label="Commands" style={{ padding: 6, maxHeight: 280, overflowY: 'auto' }}>
           {empty && (
             <div className="t-body" style={{ padding: '14px 10px', color: 'var(--muted)' }}>
               No command matches "{query}" — try fewer letters, or press <span className="kbd">Esc</span> to close.
@@ -172,6 +185,9 @@ export function CommandPalette({ actions, onClose, onGoDate }: CommandPalettePro
                 </div>
               )}
               <div
+                id={`palette-opt-${i}`}
+                role="option"
+                aria-selected={i === idx}
                 className="palette-row"
                 onClick={a.run}
                 onMouseEnter={() => setIndex(i)}

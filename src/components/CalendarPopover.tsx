@@ -2,10 +2,11 @@
 // dots / today ring / selected fill, month paging, and a 12-year grid
 // mode with the same footprint.
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { keyFromOffset } from '../data/dates';
 import { words, type Entries } from '../data/selectors';
 import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
+import { useFocusTrap } from './useFocusTrap';
 
 export interface CalendarPopoverProps {
   offset: number; // currently viewed day (relative to today)
@@ -27,6 +28,14 @@ export function CalendarPopover({ offset, entries, onJump }: CalendarPopoverProp
   });
   const [yearsMode, setYearsMode] = useState(false);
   const [yearPage, setYearPage] = useState(0);
+
+  const popRef = useRef<HTMLDivElement>(null);
+  const selectedRef = useRef<HTMLButtonElement>(null);
+  useFocusTrap(popRef);
+  // Land focus on the viewed day when the popover opens.
+  useEffect(() => {
+    selectedRef.current?.focus();
+  }, []);
 
   const t0 = new Date();
   t0.setHours(0, 0, 0, 0);
@@ -82,6 +91,9 @@ export function CalendarPopover({ offset, entries, onJump }: CalendarPopoverProp
 
   return (
     <div
+      ref={popRef}
+      role="dialog"
+      aria-label="Choose a date"
       style={{
         position: 'absolute',
         top: '100%',
@@ -186,13 +198,25 @@ export function CalendarPopover({ offset, entries, onJump }: CalendarPopoverProp
               {d}
             </span>
           ))}
-          {cells.map((c, i) => (
+          {cells.map((c, i) => {
+            const dayLabel =
+              c.label === ''
+                ? undefined
+                : `${MONTHS_FULL[vm.getMonth()]} ${c.label}, ${vm.getFullYear()}` +
+                  (c.today ? ' (today)' : '') +
+                  (c.future ? ' (in the future)' : c.hasEntry ? ' — has an entry' : '');
+            return (
             <button
               key={i}
+              ref={c.selected ? selectedRef : undefined}
               className={'t-mono' + (c.go ? ' cal-day-btn' : '')}
               onClick={c.go ?? undefined}
               disabled={!c.go && c.label !== ''}
               tabIndex={c.label === '' ? -1 : undefined}
+              aria-hidden={c.label === '' ? true : undefined}
+              aria-label={dayLabel}
+              aria-current={c.today ? 'date' : undefined}
+              aria-pressed={c.go ? c.selected : undefined}
               style={{
                 position: 'relative',
                 width: 28,
@@ -223,7 +247,8 @@ export function CalendarPopover({ offset, entries, onJump }: CalendarPopoverProp
                 }}
               />
             </button>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>

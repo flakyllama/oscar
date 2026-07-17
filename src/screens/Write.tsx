@@ -296,6 +296,7 @@ export function Write({
   const chip = (tip: string, content: React.ReactNode) => (
     <div
       className="t-mono"
+      aria-label={tip}
       onMouseEnter={tooltip.show(tip)}
       onMouseLeave={tooltip.hide}
       style={{
@@ -348,6 +349,8 @@ export function Write({
           <button
             className="date-btn"
             aria-label="Pick a date"
+            aria-haspopup="dialog"
+            aria-expanded={calOpen}
             onClick={() => setCalOpen(!calOpen)}
             style={{
               background: 'none',
@@ -470,6 +473,7 @@ export function Write({
           value={curText}
           onChange={onInput}
           spellCheck={false}
+          aria-label="Journal entry"
           className="no-focus-ring"
           style={{
             width: '100%',

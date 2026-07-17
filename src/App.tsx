@@ -56,7 +56,7 @@ function LockGate({ onUnlocked }: { onUnlocked: () => void }) {
         gap: 16,
       }}
     >
-      <div className="t-page-title">Oscar</div>
+      <h1 className="t-page-title">Oscar</h1>
       <div className="t-body" style={{ color: 'var(--muted)' }}>
         Your entries are encrypted — enter your passcode
       </div>

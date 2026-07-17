@@ -35,7 +35,7 @@ export function TileDemo({ theme }: { theme: 'dark' | 'light' }) {
         gap: 24,
       }}
     >
-      <div className="t-page-title">Tile glyphs</div>
+      <h1 className="t-page-title">Tile glyphs</h1>
       <PixelTile
         ref={tileRef}
         wordCount={120}

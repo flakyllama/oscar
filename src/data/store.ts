@@ -230,18 +230,18 @@ export class Store {
     return this.safeSet(key, typeof value === 'string' ? value : JSON.stringify(value));
   }
 
-  private persistEntries() {
+  private persistEntries(): Promise<void> {
     const entries = this.state.entries;
     if (this.lockKey) {
-      encryptJson(entries, this.lockKey)
+      return encryptJson(entries, this.lockKey)
         .then((blob) => {
           this.encryptedAtRest = blob;
           this.persist(KEYS.entries, blob);
         })
         .catch((error) => this.saveFailureListeners.forEach((fn) => fn({ key: KEYS.entries, error })));
-    } else {
-      this.persist(KEYS.entries, entries);
     }
+    this.persist(KEYS.entries, entries);
+    return Promise.resolve();
   }
 
   // ── Subscription (React binding via useSyncExternalStore) ───
@@ -526,7 +526,7 @@ export class Store {
     this.lockKey = key;
     this.persist(KEYS.lock, meta);
     this.setState({ ...this.state, lockEnabled: true, locked: false });
-    this.persistEntries();
+    await this.persistEntries();
   }
 
   async disablePasscode(passcode: string): Promise<boolean> {
@@ -538,6 +538,20 @@ export class Store {
     this.storage.removeItem(KEYS.lock);
     this.setState({ ...this.state, lockEnabled: false, locked: false });
     this.persist(KEYS.entries, this.state.entries);
+    return true;
+  }
+
+  // Re-key: verify the current passcode, then re-encrypt entries under a
+  // fresh key derived from the new one. Returns false if `current` is wrong.
+  async changePasscode(current: string, next: string): Promise<boolean> {
+    if (!this.lockMeta) return false;
+    const ok = await verifyPasscode(current, this.lockMeta);
+    if (!ok) return false;
+    const { meta, key } = await makeLockMeta(next);
+    this.lockMeta = meta;
+    this.lockKey = key;
+    this.persist(KEYS.lock, meta);
+    await this.persistEntries(); // re-encrypts under the new key
     return true;
   }
 

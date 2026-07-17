@@ -69,7 +69,7 @@ export function Entries({ onOpen }: { onOpen: (offset: number) => void }) {
         animation: 'db-fade .25s ease-out',
       }}
     >
-      <div className="t-page-title">Entries</div>
+      <h1 className="t-page-title">Entries</h1>
       <div className="t-body" style={{ color: 'var(--muted)', marginTop: 4 }}>
         {keys.length} entries · {totalWords(state.entries).toLocaleString()} words
       </div>

@@ -89,6 +89,7 @@ src/
 │   ├── glyphs.ts        Glyph bitmaps, colors, priorities, animation frames
 │   ├── Toolbar.tsx      Floating nav with the sliding active indicator
 │   ├── CalendarPopover.tsx / CommandPalette.tsx / Tooltip.tsx / Icons.tsx
+│   └── useFocusTrap.ts     Focus trap + restore for modal surfaces
 ├── screens/            Write, Entries, Stats, Milestones, Settings, TileDemo
 ├── data/
 │   ├── store.ts         Typed store over localStorage (subscribe/snapshot)
@@ -106,6 +107,7 @@ src/
 │   ├── cloudTarget.ts   Zero-knowledge Worker backend
 │   └── engine.ts        Orchestrator: pull → merge → apply → push
 ├── styles/             tokens.css (theme) + app.css (interaction states)
+├── ../e2e/             Playwright end-to-end specs
 └── ../worker/          Cloudflare Worker + KV sync backend (deployed separately)
 ```
 
@@ -119,8 +121,9 @@ dates** (`YYYY-MM-DD`), and all date math is DST-safe — see the tests in
 - **Backup** — export/import the whole journal as JSON. Import *merges*:
   missing days are filled, and on a conflict the longer text wins.
 - **Passcode** — optionally encrypt entries at rest with AES-GCM (key
-  derived from the passcode via PBKDF2). Set it in Settings; there's no
-  recovery, so keep it safe.
+  derived from the passcode via PBKDF2). Set, change (re-keys and
+  re-encrypts in place), or remove it in Settings; there's no recovery,
+  so keep it safe.
 - **Trash** — cleared days are recoverable from Settings.
 - **Storage meter** — Settings shows usage against the ~5 MB budget and
   warns before you hit it.
@@ -164,13 +167,20 @@ handler tests ([`worker/index.test.ts`](worker/index.test.ts)).
 ## Testing
 
 ```bash
-npm test
+npm test          # Vitest unit tests (node env)
+npm run test:e2e  # Playwright E2E (boots the dev server itself)
 ```
 
-54 unit tests cover the load-bearing logic: local-date/DST day keys,
-streak and word-count selectors, backup merge, and the sync merge
-(LWW + tombstones + conflict detection). The UI is verified manually
-against the handoff screenshots.
+**76 unit tests** cover the load-bearing logic: local-date/DST day keys,
+streak and word-count selectors, backup merge, the passcode lifecycle
+(set / change / unlock, re-keying at rest), the sync merge
+(LWW + tombstones + conflict detection), the zero-knowledge identity
+codec, and the Worker request handler.
+
+**Playwright** ([`e2e/`](e2e/)) drives the real UI in Chromium: writing
+persists across a reload, the ⌥-layer shortcuts and toolbar move between
+views, the command palette exposes accessible dialog/listbox roles and
+jumps to a parsed date, and a passcode locks then unlocks the journal.
 
 ## Design source
 

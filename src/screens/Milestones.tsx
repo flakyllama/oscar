@@ -31,7 +31,7 @@ export function Milestones() {
         animation: 'db-fade .25s ease-out',
       }}
     >
-      <div className="t-page-title">Milestones</div>
+      <h1 className="t-page-title">Milestones</h1>
       <div className="t-body" style={{ color: 'var(--muted)', marginTop: 4 }}>
         {earned} of {all.length} earned
       </div>
