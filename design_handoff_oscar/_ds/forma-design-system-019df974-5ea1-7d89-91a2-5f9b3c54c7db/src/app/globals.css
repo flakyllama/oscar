@@ -1,0 +1,310 @@
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --bg: #F5F5F3;
+  --surface: #FFFFFF;
+  /* Elevated surface — popovers, tooltips, anything that needs to read as
+     a layer above the card surface. Slightly darker than --surface in light
+     mode; slightly lighter in dark mode. Pair with --border + a soft
+     shadow for the full elevated treatment. */
+  --surface-2: #ECECEA;
+  --border: rgba(0, 0, 0, 0.08);
+  --fg: #111113;
+  --muted: #7A7A79;
+  --muted-2: #8E8E8D;
+  --accent: #E8612B;
+  --danger: #DC2626;
+  /* Menu-button fills are monotone overlays derived from the page
+     background — neutral tints that read as "selection" without fighting
+     the accent color used on icons/labels. */
+  --nav-hover: rgba(0, 0, 0, 0.04);
+  --nav-active: rgba(0, 0, 0, 0.07);
+  --pill-bg: #E9E9E7;
+  --row-hover: rgba(0, 0, 0, 0.04);
+  /* Heart-rate zone colors (shared light/dark). */
+  --z1: #6195C6;
+  --z2: #7DB57E;
+  --z3: #E5B35D;
+  --z4: #E27A5F;
+  --z5: #C85151;
+  --z6: #B74040;
+  /* Tertiary palette — amber, violet, sky — complement the orange accent
+     at equal perceived luminosity. Use for secondary categorisation
+     (e.g. set types) where the accent must stay unambiguously primary. */
+  --tert-amber: #b8830a;
+  --tert-violet: #7c3aed;
+  --tert-sky: #0284c7;
+  /* Tag-flair palette — used for the colored dot adjacent to mood/session
+     tags. Stable per-tag selection; share light/dark. */
+  --tag-flair-1: #E8612B;
+  --tag-flair-2: #6FB58A;
+  --tag-flair-3: #5BA3D0;
+  --tag-flair-4: #D4A55A;
+  --tag-flair-5: #D86B6B;
+  --tag-flair-6: #9B7BB8;
+  --tag-flair-7: #5FB8AE;
+  --tag-flair-8: #D77BAC;
+}
+
+.dark {
+  --bg: #111113;
+  --surface: #1A1A1E;
+  --surface-2: #26262B;
+  --border: rgba(255, 255, 255, 0.08);
+  --fg: #F5F5F5;
+  --muted: #888889;
+  --muted-2: #707071;
+  --accent: #E8612B;
+  --danger: #F87171;
+  --tert-amber: #e8b84b;
+  --tert-violet: #a78bfa;
+  --tert-sky: #38bdf8;
+  --nav-hover: rgba(255, 255, 255, 0.05);
+  --nav-active: rgba(255, 255, 255, 0.09);
+  --pill-bg: #1E1E20;
+  --row-hover: rgba(255, 255, 255, 0.04);
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-fg: var(--fg);
+  --color-muted: var(--muted);
+  --color-muted-2: var(--muted-2);
+  --color-border: var(--border);
+  --color-accent: var(--accent);
+  --color-danger: var(--danger);
+  --color-tert-amber: var(--tert-amber);
+  --color-tert-violet: var(--tert-violet);
+  --color-tert-sky: var(--tert-sky);
+  --font-sans: var(--font-inter);
+  --font-mono: var(--font-jetbrains-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-inter), system-ui, -apple-system, sans-serif;
+}
+
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]) {
+    cursor: pointer;
+  }
+
+  button:disabled,
+  [role="button"][aria-disabled="true"] {
+    cursor: default;
+  }
+
+  /* Pre-set the brand accent as every element's resting `outline-color` so
+     the focus ring doesn't flash through `currentColor` on the way in.
+     CSS defaults `outline-color` to `currentColor`, and Tailwind v4's
+     `transition-colors` utility now includes `outline-color` in its
+     transition list — so on focus, the outline animates from the
+     element's text color (white-ish on dark surfaces) up to
+     `var(--accent)`, producing a visible white→orange flash on tab.
+     Setting the resting value to the accent up front makes the focus
+     transition a no-op for color and the ring snaps in cleanly; only
+     `outline-style` flips from `none` → `solid`, which isn't animatable.
+     `:where(*)` keeps specificity at (0,0,0) so any explicit
+     `outline-color` utility on a component still wins. */
+  :where(*) {
+    outline-color: var(--accent);
+  }
+
+  /* Global focus-visible default — every interactive element gets the brand
+     accent ring unless it explicitly opts out. Wrapped in :where() so the
+     specificity is (0,0,0); any component-level `focus-visible:outline-*`
+     utility (specificity 0,1,1+) wins, and `focus-visible:outline-none`
+     still removes the ring where intentional. */
+  :where(
+    a,
+    button,
+    input,
+    textarea,
+    select,
+    summary,
+    [role="button"],
+    [role="tab"],
+    [role="link"],
+    [role="menuitem"],
+    [role="option"],
+    [role="radio"],
+    [role="checkbox"],
+    [tabindex]
+  ):focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.forma-scroll {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--fg) 8%, transparent) transparent;
+}
+.forma-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.forma-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.forma-scroll::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--fg) 8%, transparent);
+  border-radius: 4px;
+}
+.forma-scroll::-webkit-scrollbar-thumb:hover {
+  background: color-mix(in srgb, var(--fg) 16%, transparent);
+}
+
+body.is-resizing,
+body.is-resizing * {
+  user-select: none !important;
+  cursor: col-resize !important;
+}
+
+.resize-handle:hover .resize-line,
+.resize-handle:focus-visible .resize-line,
+.resize-handle[data-active="true"] .resize-line {
+  width: 2px;
+  background: var(--accent);
+}
+
+.resize-handle:focus-visible {
+  outline: none;
+}
+
+@keyframes saving-ellipsis {
+  0%, 80%, 100% { opacity: 0; }
+  40% { opacity: 1; }
+}
+.saving-dot {
+  display: inline-block;
+  animation: saving-ellipsis 1.6s ease-in-out infinite;
+}
+
+/* ── Linear-style chart wrappers ──────────────────────────────────
+   Used by the four Progress-tab charts (MountainCard, F&F,
+   MatchedRunsCard, …). Tighter padding so the chart fills the card
+   edge to edge; SVG heights collapse on narrow viewports while
+   y-labels — rendered in viewBox coordinates at x=6 — stay readable
+   because they scale with the SVG. The shared `chart-x-labels` strip
+   replaces in-SVG x-axis text so the SVG canvas can use 100% of its
+   height for data. */
+.chart-wrap {
+  position: relative;
+  padding: 20px;
+}
+/* Descendant selectors so cards can nest the SVG inside a relatively-
+   positioned wrapper (e.g. F&F / Mountain overlay HTML y-labels on
+   top of the chart) without losing the width/height rules. The SVG
+   has no width attribute and the default `auto` value can resolve
+   to the viewBox's intrinsic width (300px in some engines) — without
+   the explicit `width: 100%`, dots get squished and the absolutely
+   positioned scrubber line drifts away from them. */
+.chart-wrap svg {
+  display: block;
+  width: 100%;
+}
+.chart-mtn svg { height: 320px; }
+.chart-ff svg { height: 320px; }
+.chart-route svg { height: 320px; }
+.chart-gainer svg { height: 320px; }
+.chart-timeline .timeline-plot { height: 320px; }
+
+.chart-x-labels {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 14px 4px 22px;
+  font-family: var(--font-jetbrains-mono), monospace;
+  font-size: 10px;
+  color: rgba(245, 245, 245, 0.42);
+}
+.chart-x-labels .current {
+  color: var(--fg);
+  font-weight: 500;
+}
+.chart-x-labels-route {
+  padding-top: 6px;
+  padding-bottom: 2px;
+}
+
+/* Pinned scrubber tooltip on the Weekly volume chart. Positioned
+   absolutely from `.chart-wrap` so it tracks the SVG's bounds; the
+   inner content is set inline (week label on top, mono numbers on
+   the second row) so the same component handles both the pinned
+   "current week" default and a moving hover state. */
+.chart-scrubber-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  /* Neutral fg-tinted gray so the line reads against any trendline color
+     (orange accent on Mountain, green/coral/blue on F&F) without
+     visually merging into one of them. Solid at this opacity matches
+     the perceived weight of the dot's 2px ring stroke. */
+  background: color-mix(in srgb, var(--fg) 50%, transparent);
+  pointer-events: none;
+}
+/* Tooltip on the chart-scrubber. Reads as a layer above the card surface
+   (elevated --surface-2 + shadow + border), not as part of the card. Text
+   uses the default sans at 14/20 — matches every other small label in the
+   product, and replaces the older mono-11 styling that didn't fit. */
+.chart-scrubber-tip {
+  position: absolute;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 11px;
+  font-size: 14px;
+  line-height: 20px;
+  color: var(--fg);
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+.chart-scrubber-tip-week {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 20px;
+  margin-bottom: 2px;
+}
+
+@media (max-width: 720px) {
+  .chart-wrap {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+  .chart-mtn svg { height: 280px; }
+  .chart-ff svg { height: 280px; }
+  .chart-route svg { height: 280px; }
+  .chart-gainer svg { height: 280px; }
+  .chart-timeline .timeline-plot { height: 280px; }
+  .chart-x-labels {
+    padding-left: 18px;
+    padding-right: 8px;
+    font-size: 9.5px;
+  }
+}
+@media (max-width: 480px) {
+  .chart-mtn svg { height: 240px; }
+  .chart-ff svg { height: 240px; }
+  .chart-route svg { height: 240px; }
+  .chart-gainer svg { height: 240px; }
+  .chart-timeline .timeline-plot { height: 240px; }
+}
