@@ -1,0 +1,62 @@
+/* Hover/interaction styles that were style-hover attributes in the
+   prototype, expressed as classes. */
+
+.nav-btn { background: transparent; }
+.nav-btn:hover { background: var(--nav-hover); }
+
+.date-btn { transition: background .12s ease-out; }
+.date-btn:hover { background: var(--nav-hover); }
+
+.day-nav-btn { transition: background .12s ease-out; }
+.day-nav-btn:hover { background: var(--row-hover); color: var(--fg) !important; }
+
+.chip-hover { transition: background .12s ease-out, color .12s ease-out; }
+.chip-hover:hover { background: var(--row-hover) !important; color: var(--fg) !important; }
+
+.cal-title-btn:hover { background: var(--nav-hover); }
+.cal-year-btn:hover { background: var(--nav-hover) !important; }
+.cal-day-btn:hover:not(:disabled) { background: var(--nav-hover) !important; }
+
+.entry-row { transition: background .12s ease-out, border-color .12s ease-out; }
+.entry-row:hover, .entry-row:focus-visible {
+  background: var(--row-hover) !important;
+  border-color: color-mix(in srgb, var(--accent) 55%, var(--border)) !important;
+}
+.entry-row .row-arrow {
+  flex-shrink: 0;
+  width: 0;
+  opacity: 0;
+  transform: translateX(-6px);
+  transition: width .18s ease-out, opacity .18s ease-out, transform .18s ease-out;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  margin-left: -8px;
+}
+.entry-row:hover .row-arrow, .entry-row:focus-visible .row-arrow {
+  width: 14px;
+  opacity: 1;
+  transform: none;
+}
+
+.ghost-btn { transition: background .12s ease-out; }
+.ghost-btn:hover {
+  background: var(--row-hover);
+  border-color: color-mix(in srgb, var(--fg) 18%, var(--border)) !important;
+}
+
+.otd-card { transition: opacity .35s ease-out, transform .35s ease-out, background .12s ease-out; }
+.otd-card:hover {
+  background: var(--row-hover);
+  border-color: color-mix(in srgb, var(--fg) 18%, var(--border));
+  opacity: 1 !important;
+}
+
+/* Focus mode: chrome fades to 5%; hover restores */
+.chrome-fade { transition: opacity .35s ease-out; }
+.chrome-fade:hover { opacity: 1 !important; }
+
+/* The editor and search suppress the keyboard focus ring */
+.no-focus-ring:focus-visible { outline: none !important; }
+
+.palette-row { cursor: pointer; }

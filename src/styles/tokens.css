@@ -1,0 +1,175 @@
+/* ──────────────────────────────────────────────────────────────────
+   Oscar — theme tokens
+   Ported from the Forma design system (colors_and_type.css) with the
+   Oscar overrides from design_handoff_oscar/README.md.
+   ────────────────────────────────────────────────────────────────── */
+
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap");
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-VariableFont_wght.ttf") format("truetype-variations"),
+       url("/fonts/JetBrainsMono-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Italic-VariableFont_wght.ttf") format("truetype-variations"),
+       url("/fonts/JetBrainsMono-Italic-VariableFont_wght.ttf") format("truetype");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+:root,
+[data-theme="light"] {
+  /* ── Surface ───────────────────────────────────────────────── */
+  --bg:           #F5F5F3;
+  --surface:      #FFFFFF;
+  --surface-2:    #ECECEA;
+  --border:       rgba(0, 0, 0, 0.08);
+  --row-hover:    rgba(0, 0, 0, 0.04);
+  --nav-hover:    rgba(0, 0, 0, 0.04);
+  --nav-active:   rgba(0, 0, 0, 0.07);
+  --pill-bg:      #E9E9E7;
+
+  /* ── Text ──────────────────────────────────────────────────── */
+  --fg:           #111113;
+  --muted:        #7A7A79;
+  --muted-2:      #8E8E8D;
+
+  /* ── Accent — Oscar override: purple-indigo in both themes ─── */
+  --accent:       oklch(0.72 0.16 280);
+  --danger:       #DC2626;
+
+  /* ── Zones (glyph colors use z2/z3/z4/z5) ──────────────────── */
+  --z1:           #6195C6;
+  --z2:           #7DB57E;
+  --z3:           #E5B35D;
+  --z4:           #E27A5F;
+  --z5:           #C85151;
+  --z6:           #B74040;
+
+  /* ── Tag flair (confetti colors) ───────────────────────────── */
+  --tag-flair-1:  #E8612B;
+  --tag-flair-2:  #6FB58A;
+  --tag-flair-3:  #5BA3D0;
+  --tag-flair-4:  #D4A55A;
+  --tag-flair-5:  #D86B6B;
+  --tag-flair-6:  #9B7BB8;
+  --tag-flair-7:  #5FB8AE;
+  --tag-flair-8:  #D77BAC;
+
+  /* ── Type ──────────────────────────────────────────────────── */
+  --font-sans: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  /* ── Radii ─────────────────────────────────────────────────── */
+  --radius-sm:   8px;
+  --radius-md:   12px;
+  --radius-lg:   16px;
+  --radius-full: 9999px;
+
+  /* ── Shadows (only on overlays) ────────────────────────────── */
+  --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.18);
+}
+
+[data-theme="dark"] {
+  --bg:           #111113;
+  --surface:      #1A1A1E;
+  --surface-2:    #26262B;
+  --border:       rgba(255, 255, 255, 0.08);
+  --row-hover:    rgba(255, 255, 255, 0.04);
+  --nav-hover:    rgba(255, 255, 255, 0.05);
+  --nav-active:   rgba(255, 255, 255, 0.09);
+  --pill-bg:      #1E1E20;
+
+  --fg:           #F5F5F5;
+  --muted:        #888889;
+  --muted-2:      #707071;
+
+  --danger:       #F87171;
+}
+
+/* ── Base ────────────────────────────────────────────────────── */
+html, body { margin: 0; padding: 0; background: #111113; }
+body { font-family: var(--font-sans); color: var(--fg); background: var(--bg); }
+a { color: var(--accent); }
+a:hover { color: var(--fg); }
+textarea::placeholder { color: var(--muted-2); }
+input::placeholder { color: var(--muted-2); }
+
+/* Keyboard-only focus ring; suppressed on the editor and search */
+input:focus-visible, button:focus-visible, a:focus-visible, [tabindex]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+button:hover .jump-arrow { transform: translateX(3px); }
+
+/* ── Utilities ───────────────────────────────────────────────── */
+.kbd {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  background: color-mix(in srgb, var(--fg) 7%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+.icon-btn {
+  width: 24px;
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: color-mix(in srgb, var(--fg) 6%, transparent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--fg);
+}
+.icon-btn:hover { background: var(--nav-hover); }
+
+/* ── Semantic typography ─────────────────────────────────────── */
+.t-page-title    { font-size: 24px; line-height: 32px; font-weight: 600; letter-spacing: -0.005em; }
+.t-card-title    { font-size: 15px; line-height: 24px; font-weight: 500; letter-spacing: -0.005em; }
+.t-body          { font-size: 14px; line-height: 20px; font-weight: 400; }
+.t-body-strong   { font-size: 14px; line-height: 20px; font-weight: 500; }
+.t-caption       { font-size: 12px; line-height: 16px; font-weight: 400; }
+.t-eyebrow-sm {
+  font-size: 11px; line-height: 16px; font-weight: 400;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.t-stat-primary {
+  font-family: var(--font-mono);
+  font-size: 24px; line-height: 32px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.t-stat-secondary {
+  font-family: var(--font-mono);
+  font-size: 18px; line-height: 24px; font-weight: 500;
+  font-variant-numeric: tabular-nums;
+}
+.t-mono {
+  font-family: var(--font-mono);
+  font-size: 14px; line-height: 20px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Keyframes (from the Oscar.dc.html prototype) ────────────── */
+@keyframes db-pop-cal { from { opacity: 0; transform: translate(-50%, 4px); } to { opacity: 1; transform: translate(-50%, 0); } }
+@keyframes db-grow-v { from { transform: scaleY(0); } }
+@keyframes db-pop2 { from { transform: translate(-50%,-50%) scale(0); } }
+@keyframes db-reveal { from { clip-path: inset(0 100% 0 0); } }
+@keyframes db-fade { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes db-in-l-a { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes db-in-l-b { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes db-in-r-a { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes db-in-r-b { from { opacity: 0; transform: translateX(14px); } to { opacity: 1; transform: none; } }
+@keyframes db-blink { 0%, 55% { opacity: 1; } 56%, 100% { opacity: 0; } }
+@keyframes db-tip { from { opacity: 0; } to { opacity: 1; } }
