@@ -362,11 +362,26 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
 
         <div style={rowStyle}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div className="t-body-strong">Trash</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
-              {trashKeys.length === 0
-                ? 'Cleared days land here and can be restored'
-                : trashKeys.length + (trashKeys.length === 1 ? ' day' : ' days') + ' in the trash'}
+            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+              <div>
+                <div className="t-body-strong">Trash</div>
+                <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
+                  {trashKeys.length === 0
+                    ? `Cleared days land here and stay restorable for ${Store.TRASH_TTL_DAYS} days`
+                    : trashKeys.length +
+                      (trashKeys.length === 1 ? ' day' : ' days') +
+                      ` in the trash · cleared automatically after ${Store.TRASH_TTL_DAYS} days`}
+                </div>
+              </div>
+              {trashKeys.length > 0 && (
+                <button
+                  className="ghost-btn"
+                  style={{ ...ghostBtnStyle, flexShrink: 0 }}
+                  onClick={() => store.emptyTrash()}
+                >
+                  Empty trash
+                </button>
+              )}
             </div>
             {trashKeys.length > 0 && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
@@ -392,6 +407,14 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
                       </span>
                       <button className="ghost-btn" style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }} onClick={() => store.restoreDay(k)}>
                         Restore
+                      </button>
+                      <button
+                        className="ghost-btn"
+                        style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }}
+                        aria-label={`Delete ${k} forever`}
+                        onClick={() => store.purgeDay(k)}
+                      >
+                        Delete
                       </button>
                     </div>
                   );

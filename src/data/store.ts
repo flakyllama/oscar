@@ -113,6 +113,7 @@ export class Store {
     this.storage = storage;
     this.state = this.loadAll();
     this.migrate();
+    this.pruneTrash();
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', this.onStorageEvent);
     }
@@ -335,6 +336,38 @@ export class Store {
     this.setState({ ...this.state, entries, trash, ...this.touchDay(key, Date.now()) });
     this.persistEntries();
     this.persist(KEYS.trash, trash);
+  }
+
+  // Permanently drop one day from the trash. The sync tombstone lives in
+  // dayMeta, not here, so purging never resurrects the day on another device.
+  purgeDay(key: DayKey) {
+    if (!this.state.trash[key]) return;
+    const trash = { ...this.state.trash };
+    delete trash[key];
+    this.setState({ ...this.state, trash });
+    this.persist(KEYS.trash, trash);
+  }
+
+  emptyTrash() {
+    if (Object.keys(this.state.trash).length === 0) return;
+    this.setState({ ...this.state, trash: {} });
+    this.persist(KEYS.trash, {});
+  }
+
+  // Trash is a recovery buffer, not an archive: entries older than
+  // TRASH_TTL_DAYS are dropped on load so it can't grow without bound.
+  private pruneTrash() {
+    const cutoff = Date.now() - Store.TRASH_TTL_DAYS * 86400000;
+    const kept: Record<DayKey, TrashItem> = {};
+    let dropped = 0;
+    for (const [k, item] of Object.entries(this.state.trash)) {
+      if (item.deletedAt >= cutoff) kept[k] = item;
+      else dropped++;
+    }
+    if (dropped > 0) {
+      this.state = { ...this.state, trash: kept };
+      this.persist(KEYS.trash, kept);
+    }
   }
 
   restoreDay(key: DayKey) {
@@ -581,6 +614,9 @@ export class Store {
 
   // Browsers commonly cap localStorage around 5 MB per origin.
   static QUOTA_BYTES = 5 * 1024 * 1024;
+
+  // How long a cleared day stays recoverable.
+  static TRASH_TTL_DAYS = 30;
 }
 
 let singleton: Store | null = null;

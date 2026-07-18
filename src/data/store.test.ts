@@ -1,5 +1,5 @@
-// Passcode lifecycle at the store level: enable, change (re-key), and
-// verify entries persist encrypted under the *new* key only. Uses an
+// Store-level lifecycles: the passcode (enable, change/re-key, unlock)
+// and the trash (soft delete, restore, purge, TTL expiry). Uses an
 // in-memory StorageLike so the store never touches the DOM/localStorage.
 
 import { describe, it, expect } from 'vitest';
@@ -80,5 +80,84 @@ describe('Store passcode lifecycle', () => {
     expect(await reopened.unlock('first-pass')).toBe(false);
     expect(await reopened.unlock('second-pass')).toBe(true);
     expect(reopened.getSnapshot().entries['2026-07-17']).toBe('a secret thought');
+  });
+});
+
+const TRASH = 'daybook.trash';
+
+describe('Store trash lifecycle', () => {
+  it('soft-deletes a day into the trash and leaves a sync tombstone', () => {
+    const storage = memStorage();
+    const store = new Store(storage);
+    store.setEntry('2026-07-10', 'a day worth clearing');
+
+    store.softDeleteDay('2026-07-10');
+    const s = store.getSnapshot();
+
+    expect(s.entries['2026-07-10']).toBeUndefined();
+    expect(s.trash['2026-07-10'].text).toBe('a day worth clearing');
+    // The tombstone (not the trash) is what propagates the delete.
+    expect(s.dayMeta['2026-07-10'].deletedAt).toBeGreaterThan(0);
+  });
+
+  it('restores a trashed day back into entries', () => {
+    const storage = memStorage();
+    const store = new Store(storage);
+    store.setEntry('2026-07-10', 'a day worth clearing');
+    store.softDeleteDay('2026-07-10');
+
+    store.restoreDay('2026-07-10');
+    const s = store.getSnapshot();
+    expect(s.entries['2026-07-10']).toBe('a day worth clearing');
+    expect(s.trash['2026-07-10']).toBeUndefined();
+  });
+
+  it('does not clobber text written after the delete', () => {
+    const storage = memStorage();
+    const store = new Store(storage);
+    store.setEntry('2026-07-10', 'original');
+    store.softDeleteDay('2026-07-10');
+    store.setEntry('2026-07-10', 'written since');
+
+    store.restoreDay('2026-07-10');
+    expect(store.getSnapshot().entries['2026-07-10']).toBe('written since');
+  });
+
+  it('purgeDay removes one day permanently; emptyTrash clears all', () => {
+    const storage = memStorage();
+    const store = new Store(storage);
+    store.setEntry('2026-07-10', 'one');
+    store.setEntry('2026-07-11', 'two');
+    store.softDeleteDay('2026-07-10');
+    store.softDeleteDay('2026-07-11');
+
+    store.purgeDay('2026-07-10');
+    expect(store.getSnapshot().trash['2026-07-10']).toBeUndefined();
+    expect(store.getSnapshot().trash['2026-07-11']).toBeDefined();
+
+    store.emptyTrash();
+    expect(Object.keys(store.getSnapshot().trash)).toHaveLength(0);
+    expect(JSON.parse(storage.getItem(TRASH)!)).toEqual({});
+  });
+
+  it('prunes trash older than the TTL on load, keeping recent items', () => {
+    const storage = memStorage();
+    const day = 86400000;
+    const stale = Date.now() - (Store.TRASH_TTL_DAYS + 1) * day;
+    const fresh = Date.now() - day;
+    storage.setItem(
+      TRASH,
+      JSON.stringify({
+        '2026-01-01': { text: 'long gone', deletedAt: stale },
+        '2026-07-10': { text: 'still here', deletedAt: fresh },
+      }),
+    );
+
+    const store = new Store(storage);
+    const s = store.getSnapshot();
+    expect(s.trash['2026-01-01']).toBeUndefined();
+    expect(s.trash['2026-07-10'].text).toBe('still here');
+    // The prune is persisted, not just in memory.
+    expect(JSON.parse(storage.getItem(TRASH)!)['2026-01-01']).toBeUndefined();
   });
 });

@@ -136,6 +136,7 @@ function AppInner() {
   const [glyphEvent, setGlyphEvent] = useState<GlyphEvent | null>(null);
   const [lastType, setLastType] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const flip = useRef(false);
@@ -143,6 +144,13 @@ function AppInner() {
   const lastTypeRef = useRef(0);
   const session = useRef<{ dayKey: string; start: number; startWords: number; lastWords: number } | null>(null);
   const saveErrTimer = useRef<ReturnType<typeof setTimeout>>();
+  const noticeTimer = useRef<ReturnType<typeof setTimeout>>();
+
+  const showNotice = useCallback((msg: string) => {
+    setNotice(msg);
+    clearTimeout(noticeTimer.current);
+    noticeTimer.current = setTimeout(() => setNotice(null), 4000);
+  }, []);
 
   // First-visit hello (the prototype greets with confetti on load).
   useEffect(() => {
@@ -360,6 +368,9 @@ function AppInner() {
   }, [goView, navDay, toggleFocus, toggleTheme]);
 
   // ── Palette actions ─────────────────────────────────────────
+  const curKey = keyFromOffset(offset);
+  const curText = state.entries[curKey] || '';
+
   const paletteActions: PaletteAction[] = [
     { cat: 'Go to', label: 'Entries', kbd: '⌥ E', run: () => goView('home') },
     { cat: 'Go to', label: 'Stats', kbd: '⌥ S', run: () => goView('stats') },
@@ -374,9 +385,22 @@ function AppInner() {
     { cat: 'View', label: 'Toggle theme', kbd: '⌥ D', run: () => { toggleTheme(); setPaletteOpen(false); } },
   ];
 
+  // Clearing is offered only when there's something to clear. It's a soft
+  // delete, so the palette runs it without a confirm and says where it went.
+  if (words(curText) > 0) {
+    paletteActions.push({
+      cat: 'Days',
+      label: 'Clear this day',
+      kbd: '',
+      run: () => {
+        store.softDeleteDay(curKey);
+        setPaletteOpen(false);
+        showNotice('Day cleared — restore it from Settings.');
+      },
+    });
+  }
+
   // ── On-this-day card ────────────────────────────────────────
-  const curKey = keyFromOffset(offset);
-  const curText = state.entries[curKey] || '';
   let otd: { k: string; delta: number } | null = null;
   if (offset === 0 && view === 'editor') {
     for (const delta of [-365, -366, -30, -31]) {
@@ -446,6 +470,30 @@ function AppInner() {
           className="t-body"
         >
           {saveError}
+        </div>
+      )}
+
+      {/* Transient confirmation (e.g. a day was cleared) */}
+      {notice && !saveError && (
+        <div
+          role="status"
+          style={{
+            position: 'fixed',
+            top: 16,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            zIndex: 90,
+            background: 'var(--surface)',
+            border: '1px solid var(--border)',
+            borderRadius: 12,
+            padding: '8px 14px',
+            boxShadow: 'var(--shadow-lg)',
+            color: 'var(--muted)',
+            animation: 'db-fade .25s ease-out',
+          }}
+          className="t-body"
+        >
+          {notice}
         </div>
       )}
 

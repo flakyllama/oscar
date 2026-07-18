@@ -124,7 +124,11 @@ dates** (`YYYY-MM-DD`), and all date math is DST-safe — see the tests in
   derived from the passcode via PBKDF2). Set, change (re-keys and
   re-encrypts in place), or remove it in Settings; there's no recovery,
   so keep it safe.
-- **Trash** — cleared days are recoverable from Settings.
+- **Trash** — clear the current day with **Clear this day** in the ⌘K
+  palette (a soft delete). Cleared days stay restorable in Settings for
+  30 days, then expire on their own; you can also restore, delete, or
+  empty the trash by hand. The sync tombstone lives separately in
+  `dayMeta`, so purging the trash never resurrects a day elsewhere.
 - **Storage meter** — Settings shows usage against the ~5 MB budget and
   warns before you hit it.
 
@@ -171,16 +175,23 @@ npm test          # Vitest unit tests (node env)
 npm run test:e2e  # Playwright E2E (boots the dev server itself)
 ```
 
-**76 unit tests** cover the load-bearing logic: local-date/DST day keys,
+**81 unit tests** cover the load-bearing logic: local-date/DST day keys,
 streak and word-count selectors, backup merge, the passcode lifecycle
-(set / change / unlock, re-keying at rest), the sync merge
-(LWW + tombstones + conflict detection), the zero-knowledge identity
-codec, and the Worker request handler.
+(set / change / unlock, re-keying at rest), the trash lifecycle (soft
+delete / restore / purge / TTL expiry), the sync merge (LWW + tombstones
++ conflict detection), the zero-knowledge identity codec, and the Worker
+request handler.
 
 **Playwright** ([`e2e/`](e2e/)) drives the real UI in Chromium: writing
 persists across a reload, the ⌥-layer shortcuts and toolbar move between
 views, the command palette exposes accessible dialog/listbox roles and
-jumps to a parsed date, and a passcode locks then unlocks the journal.
+jumps to a parsed date, clearing a day round-trips through the trash, and
+a passcode locks then unlocks the journal.
+
+Both suites run on every push and PR via
+[GitHub Actions](.github/workflows/ci.yml) — typecheck, unit tests and
+build in one job, Playwright in another (with the HTML report uploaded on
+failure).
 
 ## Design source
 
