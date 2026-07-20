@@ -10,11 +10,16 @@ import type { DocStore, PutArgs, PutOutcome, StoredDoc } from './handler';
 
 // The Vercel/Upstash marketplace integration sets KV_REST_API_*; a
 // hand-made Upstash database sets UPSTASH_REDIS_REST_*. Accept either.
+/** A problem the operator can fix — safe to report to the caller verbatim. */
+export class ConfigError extends Error {}
+
 export function redisFromEnv(env: Record<string, string | undefined> = process.env): Redis {
-  const url = env.KV_REST_API_URL || env.UPSTASH_REDIS_REST_URL;
-  const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
+  // Tolerate stray whitespace/quotes from copy-paste into a dashboard.
+  const clean = (v: string | undefined) => v?.trim().replace(/^["']|["']$/g, '') || undefined;
+  const url = clean(env.KV_REST_API_URL) || clean(env.UPSTASH_REDIS_REST_URL);
+  const token = clean(env.KV_REST_API_TOKEN) || clean(env.UPSTASH_REDIS_REST_TOKEN);
   if (!url || !token) {
-    throw new Error(
+    throw new ConfigError(
       'Sync storage is not configured — set UPSTASH_REDIS_REST_URL and ' +
         'UPSTASH_REDIS_REST_TOKEN (from your Upstash database), or the ' +
         'KV_REST_API_URL / KV_REST_API_TOKEN pair a Vercel Marketplace ' +

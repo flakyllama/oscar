@@ -42,6 +42,22 @@ const call = (method, { tok = token, body, ifMatch } = {}) =>
 
 console.log(`\nSmoke-testing ${url}\n`);
 
+// Fail fast on Vercel Deployment Protection: it 401s *everything*, which
+// otherwise looks like a couple of auth checks passing.
+{
+  const probe = await call('GET');
+  const text = await probe.clone().text();
+  if (/vercel_auth|Protected deployment|sso-api/i.test(text)) {
+    console.error(
+      'This deployment is behind Vercel Deployment Protection, so every request\n' +
+        'returns 401 before reaching the API. Use the production alias rather than\n' +
+        'the deployment-specific URL, or disable protection under\n' +
+        'Project → Settings → Deployment Protection.\n',
+    );
+    process.exit(2);
+  }
+}
+
 // 1. A fresh account reads as empty.
 check('GET on a new account → 404', (await call('GET')).status === 404);
 
