@@ -27,10 +27,13 @@ interface CloudConfig {
   endpoint: string;
 }
 
-// Build-time default endpoint (your deployed Worker); overridable at
-// connect time so self-hosters can point at their own.
+// Where the sync API lives. The API ships alongside the app (Vercel
+// serves /v1/doc/* from the same deployment), so same-origin is the
+// default and needs no configuration. Set VITE_SYNC_ENDPOINT at build
+// time to point at a separately-hosted backend instead.
 export const DEFAULT_ENDPOINT: string =
-  (import.meta.env.VITE_SYNC_ENDPOINT as string | undefined)?.replace(/\/$/, '') || '';
+  (import.meta.env.VITE_SYNC_ENDPOINT as string | undefined)?.replace(/\/$/, '') ||
+  (typeof window !== 'undefined' ? window.location.origin : '');
 
 function b64(bytes: Uint8Array): string {
   let s = '';

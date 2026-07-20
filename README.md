@@ -4,7 +4,8 @@ A minimal, keyboard-first daily writing journal. One entry per calendar
 day, a plain-text editor with a typewriter feel, and an 8×8 pixel tile
 that reacts to your writing — an equalizer while you type, celebration
 glyphs when you hit a milestone. Everything is stored locally; nothing
-leaves your device unless you turn on file sync.
+leaves your device unless you turn on sync — and when you do, it leaves
+encrypted, with the key never going anywhere.
 
 Built from the design handoff in [`design_handoff_oscar/`](design_handoff_oscar/)
 (React + TypeScript + Vite, plain CSS custom properties, no component
@@ -20,10 +21,12 @@ npm run dev            # http://localhost:5173
 | Script            | What it does                                  |
 | ----------------- | --------------------------------------------- |
 | `npm run dev`     | Vite dev server with HMR                       |
-| `npm run build`   | Type-check (`tsc -b`) then production build    |
+| `npm run typecheck` | Type-check the app and the API                |
+| `npm run build`   | Type-check then production build               |
 | `npm run preview` | Serve the production build                      |
 | `npm test`        | Run the unit tests once (Vitest)               |
 | `npm run test:watch` | Watch mode                                  |
+| `npm run test:e2e` | Playwright end-to-end specs                   |
 
 Requires Node 18+.
 
@@ -104,11 +107,12 @@ src/
 │   ├── identity.ts      Master key → HKDF account/auth/enc; sync-key codec
 │   ├── target.ts        SyncTarget interface + IndexedDB persistence
 │   ├── fileTarget.ts    File System Access backend
-│   ├── cloudTarget.ts   Zero-knowledge Worker backend
+│   ├── cloudTarget.ts   Zero-knowledge cloud backend
 │   └── engine.ts        Orchestrator: pull → merge → apply → push
 ├── styles/             tokens.css (theme) + app.css (interaction states)
+├── ../api/             Sync API (Vercel Edge Function + Upstash Redis)
 ├── ../e2e/             Playwright end-to-end specs
-└── ../worker/          Cloudflare Worker + KV sync backend (deployed separately)
+└── ../scripts/         smoke-sync.mjs — post-deploy API check
 ```
 
 ### Data & privacy
@@ -139,12 +143,13 @@ through a backend. Two backends sit behind a shared
 [`SyncTarget`](src/sync/target.ts) interface and the same merge core:
 
 - **Cloud** (default, every browser) — a zero-knowledge
-  [Cloudflare Worker](worker/) over KV. Everything derives from one
-  256-bit **master sync key**, shown once as a copyable code
-  (`oscar1-…`); the client derives an account id, a bearer token, and an
-  AES-GCM key from it via HKDF. The server stores only ciphertext and a
-  *hash* of the auth token, so it can never read your journal. Add a
-  device by pasting the same key.
+  [sync API](api/) that ships with the app as a Vercel Edge Function over
+  Upstash Redis. Everything derives from one 256-bit **master sync key**,
+  shown once as a copyable code (`oscar1-…`); the client derives an
+  account id, a bearer token, and an AES-GCM key from it via HKDF. The
+  server stores only ciphertext and a *hash* of the auth token, so it can
+  never read your journal. Add a device by pasting the same key. API and
+  app share an origin, so there's nothing to configure.
 - **File** (Chromium only) — a JSON file **you own**, via the File System
   Access API; drop it in an iCloud/Dropbox/Drive folder for no-server
   sync. Encryption here is the optional local passcode.
@@ -161,12 +166,19 @@ Both share:
 
 The merge and identity logic are pure and unit-tested
 ([`merge.test.ts`](src/sync/merge.test.ts),
-[`identity.test.ts`](src/sync/identity.test.ts)); the Worker has its own
-handler tests ([`worker/index.test.ts`](worker/index.test.ts)).
+[`identity.test.ts`](src/sync/identity.test.ts)); the API has its own
+handler tests ([`api/handler.test.ts`](api/handler.test.ts)).
 
-**Deploying the cloud backend** is a few commands — see
-[`worker/README.md`](worker/README.md). Point the app at your Worker with
-`VITE_SYNC_ENDPOINT` at build time, or paste the URL into the Sync panel.
+## Deploying
+
+The app and its sync API deploy together to Vercel — see
+[`DEPLOY.md`](DEPLOY.md) for the walkthrough. In short: import the repo,
+add the Upstash Redis integration (which sets the storage env vars), and
+deploy. Then verify the live API with:
+
+```bash
+node scripts/smoke-sync.mjs https://your-app.vercel.app
+```
 
 ## Testing
 
@@ -175,12 +187,12 @@ npm test          # Vitest unit tests (node env)
 npm run test:e2e  # Playwright E2E (boots the dev server itself)
 ```
 
-**81 unit tests** cover the load-bearing logic: local-date/DST day keys,
+**86 unit tests** cover the load-bearing logic: local-date/DST day keys,
 streak and word-count selectors, backup merge, the passcode lifecycle
 (set / change / unlock, re-keying at rest), the trash lifecycle (soft
 delete / restore / purge / TTL expiry), the sync merge (LWW + tombstones
-+ conflict detection), the zero-knowledge identity codec, and the Worker
-request handler.
++ conflict detection), the zero-knowledge identity codec, and the sync
+API request handler.
 
 **Playwright** ([`e2e/`](e2e/)) drives the real UI in Chromium: writing
 persists across a reload, the ⌥-layer shortcuts and toolbar move between

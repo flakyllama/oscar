@@ -22,7 +22,7 @@ jobs:
           cache: npm
       - run: npm ci
       - name: Typecheck
-        run: npx tsc -b
+        run: npm run typecheck
       - name: Unit tests
         run: npm test
       - name: Build
