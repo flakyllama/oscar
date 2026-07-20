@@ -41,16 +41,42 @@ gh run list --limit 1
 The first deploy will succeed, but **sync won't work yet** — there's no
 database. That's the next step.
 
-## 3. Add Upstash Redis
+## 3. Add Redis storage
 
-1. In the project, open the **Storage** tab.
-2. **Create Database → Upstash → Redis** (Marketplace).
-3. Pick a region close to you, accept the free plan, and connect it to
-   this project.
+**The Vercel Marketplace does not offer Upstash's free plan** — its
+listings start at a paid tier. Upstash's own free tier is alive and well
+(256 MB, 500K commands/month, 10 GB bandwidth, one database per account),
+so create the database directly with Upstash and hand Vercel the
+credentials. The API accepts either variable naming, so this needs no
+code change.
 
-This sets `KV_REST_API_URL` and `KV_REST_API_TOKEN` on the project
-automatically. The API reads either those or the `UPSTASH_REDIS_REST_*`
-pair, so no manual configuration is needed.
+1. Sign up at [upstash.com](https://upstash.com) and **Create Database →
+   Redis**. Pick a region close to your Vercel region, and the **Free**
+   plan.
+2. On the database page, find the **REST API** section and copy
+   `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+3. In Vercel: **Project → Settings → Environment Variables**, add both,
+   scoped to *Production, Preview and Development*.
+
+```
+UPSTASH_REDIS_REST_URL    = https://xxxx.upstash.io
+UPSTASH_REDIS_REST_TOKEN  = AXXXxxxx...
+```
+
+> **Alternatives.** If you'd rather have unified billing and don't mind
+> paying, the Marketplace's Upstash or Redis Cloud listings work
+> identically — those set `KV_REST_API_URL` / `KV_REST_API_TOKEN`, which
+> the API also reads. Redis Cloud has a small free tier (~30 MB) if you
+> want free *and* Marketplace-managed.
+
+### Will the free tier actually hold?
+
+Comfortably, for personal use. Each sync is one read; each save is one
+write. Oscar polls for remote changes every 30s **only while a tab is
+visible** — a backgrounded tab costs nothing. Two devices in active use
+for a few hours a day land in the low tens of thousands of commands per
+month, well inside 500K. Storage is one small encrypted document per
+account, against a 256 MB ceiling.
 
 ## 4. Redeploy so the function picks up the variables
 

@@ -15,8 +15,10 @@ export function redisFromEnv(env: Record<string, string | undefined> = process.e
   const token = env.KV_REST_API_TOKEN || env.UPSTASH_REDIS_REST_TOKEN;
   if (!url || !token) {
     throw new Error(
-      'Sync storage is not configured — set KV_REST_API_URL and KV_REST_API_TOKEN ' +
-        '(added automatically by the Upstash integration on Vercel).',
+      'Sync storage is not configured — set UPSTASH_REDIS_REST_URL and ' +
+        'UPSTASH_REDIS_REST_TOKEN (from your Upstash database), or the ' +
+        'KV_REST_API_URL / KV_REST_API_TOKEN pair a Vercel Marketplace ' +
+        'integration provides.',
     );
   }
   // Deterministic types: we serialize/deserialize explicitly.

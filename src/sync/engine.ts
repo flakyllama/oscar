@@ -156,6 +156,10 @@ export class SyncEngine {
 
   private async pollRemote() {
     if (!this.target || this.status.syncing || this.status.needsPermission) return;
+    // A hidden tab has nobody to show remote changes to, and polling it
+    // burns quota and battery for nothing. Becoming visible polls again
+    // immediately (see the visibilitychange listener in start()).
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     try {
       const token = await this.target.remoteToken();
       const pending = Object.keys(getStore().getSnapshot().pendingSync).length > 0;
