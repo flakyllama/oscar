@@ -43,18 +43,31 @@ database. That's the next step.
 
 ## 3. Add Redis storage
 
-**The Vercel Marketplace does not offer Upstash's free plan** — its
-listings start at a paid tier. Upstash's own free tier is alive and well
-(256 MB, 500K commands/month, 10 GB bandwidth, one database per account),
-so create the database directly with Upstash and hand Vercel the
-credentials. The API accepts either variable naming, so this needs no
-code change.
+Note that **the Vercel Marketplace does not list Upstash's free plan** —
+its cheapest option is Pay As You Go. That's fine: PAYG has **no minimum
+or base fee**, and Oscar's usage costs a few cents a month. Either route
+below works; the API reads both variable namings, so neither needs a code
+change.
 
-1. Sign up at [upstash.com](https://upstash.com) and **Create Database →
-   Redis**. Pick a region close to your Vercel region, and the **Free**
-   plan.
-2. On the database page, find the **REST API** section and copy
-   `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`.
+### Option A — Marketplace, Pay As You Go (recommended)
+
+Keeps everything in Vercel and injects the credentials for you.
+
+1. **Storage → Create Database → Upstash → Redis**.
+2. Choose **Pay As You Go** ($0.20 per 100K commands; storage free under
+   1 GB, bandwidth free under 200 GB).
+3. Pick a region near your Vercel region and connect it to the project.
+
+This sets `KV_REST_API_URL` and `KV_REST_API_TOKEN` automatically.
+
+### Option B — Upstash directly, free tier
+
+A true $0 bill, at the cost of a second account and manual setup.
+
+1. Sign up at [upstash.com](https://upstash.com) → **Create Database →
+   Redis** → **Free** (256 MB, 500K commands/month, 10 GB bandwidth; one
+   free database per account).
+2. On the database page, copy the **REST API** credentials.
 3. In Vercel: **Project → Settings → Environment Variables**, add both,
    scoped to *Production, Preview and Development*.
 
@@ -63,20 +76,20 @@ UPSTASH_REDIS_REST_URL    = https://xxxx.upstash.io
 UPSTASH_REDIS_REST_TOKEN  = AXXXxxxx...
 ```
 
-> **Alternatives.** If you'd rather have unified billing and don't mind
-> paying, the Marketplace's Upstash or Redis Cloud listings work
-> identically — those set `KV_REST_API_URL` / `KV_REST_API_TOKEN`, which
-> the API also reads. Redis Cloud has a small free tier (~30 MB) if you
-> want free *and* Marketplace-managed.
+### What this actually costs
 
-### Will the free tier actually hold?
+Each poll is one command; each save is a read plus a write. Oscar polls
+every 30s **only while a tab is visible**, so backgrounded tabs cost
+nothing.
 
-Comfortably, for personal use. Each sync is one read; each save is one
-write. Oscar polls for remote changes every 30s **only while a tab is
-visible** — a backgrounded tab costs nothing. Two devices in active use
-for a few hours a day land in the low tens of thousands of commands per
-month, well inside 500K. Storage is one small encrypted document per
-account, against a 256 MB ceiling.
+| Usage | Commands/month | PAYG cost |
+| ----- | -------------- | --------- |
+| Light — 1h/day, 2 devices | ~7,000 | $0.01 |
+| Heavy — 4h/day, 2 devices | ~29,000 | $0.06 |
+| Extreme — 12h/day, 3 devices | ~130,000 | $0.26 |
+
+All three sit inside the free tier's 500K too. Storage is one small
+encrypted document per account, far below either ceiling.
 
 ## 4. Redeploy so the function picks up the variables
 
@@ -135,9 +148,8 @@ whatever origin it's served from.
 
 ## Notes
 
-- **Cost.** Vercel Hobby and the Upstash free tier comfortably cover a
-  personal journal: one small document per account, written only when you
-  edit.
+- **Cost.** Vercel Hobby is free; Redis is either $0 (Upstash free tier)
+  or a few cents a month (Pay As You Go). See the table in step 3.
 - **Rate limiting.** If you share this publicly, add
   [`@upstash/ratelimit`](https://github.com/upstash/ratelimit) — it can
   reuse the same Redis.
