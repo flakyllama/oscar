@@ -9,14 +9,10 @@ do, it leaves encrypted, with the key never going anywhere. Optional,
 opt-in usage analytics (below) only ever count *that* you did something,
 never *what* you wrote.
 
-Built from a design handoff — an HTML prototype and a token/pattern
-reference — as React + TypeScript + Vite, with plain CSS custom
-properties and no component library.
+Built with React + TypeScript + Vite, plain CSS custom properties, and
+no component library.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/oscar-dark.png">
-  <img alt="Oscar's Write screen: the pixel tile, a day heading, session and word-count chips, and a plain-text entry." src="docs/oscar-light.png">
-</picture>
+<img alt="Oscar's Write screen: the pixel tile, a day heading, session and word-count chips, and a plain-text entry." src="docs/oscar-dark.png">
 
 ## Quick start
 
