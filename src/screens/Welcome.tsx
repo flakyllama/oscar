@@ -7,6 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { PixelTile, type WelcomeTileState } from '../components/PixelTile';
+import { EDITOR_TILE_TOP } from './Write';
 import type { Theme } from '../data/store';
 
 const LOAD_POOL = [
@@ -21,11 +22,13 @@ const LOAD_POOL = [
   'Warming up the confetti',
 ];
 
-// The editor tile lands at the top of the centred 640px column: 56px of
-// padding down, horizontally centred. Computing it (rather than measuring
-// the not-yet-mounted editor) keeps the flow self-contained.
-const EDITOR_TILE_TOP = 56;
+// The editor tile lands at the top of the centred 640px column
+// (EDITOR_TILE_TOP px down, horizontally centred). Computing it — rather
+// than measuring the not-yet-mounted editor — keeps the flow self-contained.
 const TILE = 80;
+// Keep names short enough that the "Remembering the name …" loading line
+// always finishes typing inside its slot (see startMsg).
+const MAX_NAME = 40;
 
 type Handoff = 'load' | 'land' | null;
 
@@ -102,6 +105,10 @@ export function Welcome({ theme, initialName, onNameChange, onStart, onFinish }:
     timers.current.push(setTimeout(() => setTileGo(true), 1200));
 
     const startMsg = (i: number) => {
+      // Retire the previous line's typer before starting the next, so two
+      // never write loadChars at once (a long line could outrun its slot).
+      intervals.current.forEach(clearInterval);
+      intervals.current = [];
       if (i >= msgs.length) {
         // Final flourish: smiley blanks, gold ripple, then fly up.
         setDone(true);
@@ -153,7 +160,6 @@ export function Welcome({ theme, initialName, onNameChange, onStart, onFinish }:
 
   return (
     <div
-      data-screen-label="Welcome"
       style={{
         width: '100%',
         maxWidth: 640,
@@ -248,6 +254,7 @@ export function Welcome({ theme, initialName, onNameChange, onStart, onFinish }:
                 onBlur={() => setFocused(false)}
                 placeholder="What should Oscar call you?"
                 aria-label="Your name"
+                maxLength={MAX_NAME}
                 autoFocus
                 style={{
                   boxSizing: 'content-box',

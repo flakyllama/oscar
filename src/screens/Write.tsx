@@ -16,6 +16,11 @@ import { ArrowLeftIcon, ArrowRightIcon, ClockIcon, WordsIcon, FlameIcon } from '
 const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
+// Top padding of the editor column, i.e. the viewport-y where the pixel
+// tile sits. The welcome hand-off flies its tile here, so the value is
+// shared rather than duplicated as a magic number in two files.
+export const EDITOR_TILE_TOP = 56;
+
 const PROMPTS = [
   'What did today look like from where you stood?',
   'What small thing almost slipped by today?',
@@ -119,6 +124,13 @@ export function Write({
     return () => clearInterval(phTimer.current);
     // Re-greet whenever the viewed day (or the name) changes.
   }, [curKey, greeting]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Landing here straight from the welcome hand-off: focus the editor so
+  // the writer can start typing immediately (matches the prototype).
+  useEffect(() => {
+    if (welcomeGreeting) taRef.current?.focus();
+    // Only on the initial mount after onboarding.
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Rotate to soft prompts after ~30s idle on an empty editor.
   useEffect(() => {
@@ -329,7 +341,7 @@ export function Write({
         display: 'flex',
         flexDirection: 'column',
         alignItems: 'center',
-        padding: '56px 24px 120px',
+        padding: `${EDITOR_TILE_TOP}px 24px 120px`,
         boxSizing: 'border-box',
         animation: dayAnim,
       }}

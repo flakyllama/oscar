@@ -9,7 +9,6 @@ import {
   useRef,
   useState,
   type CSSProperties,
-  type Ref,
 } from 'react';
 import { GLYPHS, GLYPH_COLOR, FLAIR, frameFor, mkEvent, type GlyphEvent, type GlyphName } from './glyphs';
 
@@ -46,7 +45,6 @@ export interface PixelTileProps {
   demoGlyph?: string; // demo/storybook: force a glyph ('auto' = live)
   onCelebrate?: (ev: GlyphEvent) => void; // 5 rapid clicks → confetti
   welcome?: WelcomeTileState | null; // first-run welcome mode (see above)
-  containerRef?: Ref<HTMLDivElement>; // measure the tile for the handoff
 }
 
 const EQ_PROFILE = [4, 6, 3, 8, 5, 7, 2, 6];
@@ -65,7 +63,6 @@ export const PixelTile = forwardRef<PixelTileHandle, PixelTileProps>(function Pi
     demoGlyph = 'auto',
     onCelebrate,
     welcome = null,
-    containerRef,
   },
   ref,
 ) {
@@ -348,7 +345,6 @@ export const PixelTile = forwardRef<PixelTileHandle, PixelTileProps>(function Pi
   // narrated by the flow, not poked by the reader.
   return (
     <div
-      ref={containerRef}
       style={style}
       onMouseMove={
         welcome

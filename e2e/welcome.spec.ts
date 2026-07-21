@@ -17,8 +17,11 @@ test('first run shows the welcome, then hands off to the editor', async ({ page 
     .poll(() => page.evaluate(() => localStorage.getItem('daybook.welcomed')))
     .toBe('1');
 
-  // The hand-off finishes in the editor; the name was captured on the way.
-  await expect(page.getByLabel('Journal entry')).toBeVisible({ timeout: 25_000 });
+  // The hand-off finishes in the editor, focused and ready to type; the
+  // name was captured on the way.
+  const editor = page.getByLabel('Journal entry');
+  await expect(editor).toBeVisible({ timeout: 25_000 });
+  await expect(editor).toBeFocused();
   expect(await page.evaluate(() => localStorage.getItem('daybook.name'))).toBe('Sara');
 });
 
