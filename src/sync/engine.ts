@@ -190,7 +190,7 @@ export class SyncEngine {
         const snapshotAt = Date.now();
         const local = store.syncSnapshot();
         const pulled = await this.target.pull();
-        const remote = pulled.side ?? { days: {}, hours: {}, settings: emptySettings(local) };
+        const remote = pulled.side ?? { days: {}, hours: {}, settings: emptySettings(local), devices: {} };
 
         const merged = mergeSync(local, remote, store.getSnapshot().syncMeta.lastSyncAt, snapshotAt);
 
@@ -204,8 +204,14 @@ export class SyncEngine {
           );
         }
         store.addSyncConflicts(merged.conflicts);
+        store.setDevices(merged.devices);
 
-        const mergedSide: SyncSide = { days: merged.days, hours: merged.hours, settings: merged.settings };
+        const mergedSide: SyncSide = {
+          days: merged.days,
+          hours: merged.hours,
+          settings: merged.settings,
+          devices: merged.devices,
+        };
         let token = pulled.version;
         const changed = JSON.stringify(mergedSide) !== JSON.stringify(remote);
         if (changed) {

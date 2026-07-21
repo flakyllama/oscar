@@ -18,10 +18,21 @@ export interface SyncSettings {
   updatedAt: number;
 }
 
+// A device in the synced "connected devices" registry. Keyed by a stable
+// per-device id; the freshest record (highest lastSyncAt) wins on merge.
+export interface SyncDeviceRecord {
+  id: string;
+  platform: string; // e.g. "Mac", "iPhone" (from the UA)
+  browser: string; // e.g. "Safari"
+  addedAt: number; // first time this device synced
+  lastSyncAt: number; // last time it synced (bucketed, so merges stay quiet)
+}
+
 export interface SyncSide {
   days: Record<DayKey, SyncDayRecord>;
   hours: Record<string, number>;
   settings: SyncSettings;
+  devices?: Record<string, SyncDeviceRecord>;
 }
 
 export interface SyncConflict {
@@ -43,6 +54,7 @@ export interface MergeResult {
   hoursChangedLocally: boolean;
   settingsChangedLocally: boolean;
   conflicts: SyncConflict[];
+  devices: Record<string, SyncDeviceRecord>;
 }
 
 function newer(a: SyncDayRecord, b: SyncDayRecord): boolean {
@@ -112,5 +124,16 @@ export function mergeSync(
   const settingsChangedLocally = remote.settings.updatedAt > local.settings.updatedAt;
   const settings = settingsChangedLocally ? remote.settings : local.settings;
 
-  return { days, hours, settings, changedLocally, hoursChangedLocally, settingsChangedLocally, conflicts };
+  // Devices: union by id, keep the freshest record. Idempotent, so
+  // re-merging merged output is a no-op.
+  const devices: Record<string, SyncDeviceRecord> = {};
+  const localDevices = local.devices || {};
+  const remoteDevices = remote.devices || {};
+  new Set([...Object.keys(localDevices), ...Object.keys(remoteDevices)]).forEach((id) => {
+    const l = localDevices[id];
+    const r = remoteDevices[id];
+    devices[id] = l && r ? (r.lastSyncAt > l.lastSyncAt ? r : l) : (l || r)!;
+  });
+
+  return { days, hours, settings, changedLocally, hoursChangedLocally, settingsChangedLocally, conflicts, devices };
 }

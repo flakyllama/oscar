@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import './styles/app.css';
 import { getStore } from './data/store';
 import { useStoreState } from './data/useStore';
+import { syncAnalytics, track } from './data/analytics';
 import { maybeSeed } from './data/seed';
 import { keyFromOffset, keyShift, dateOf } from './data/dates';
 import { words } from './data/selectors';
@@ -21,6 +22,7 @@ import { Stats } from './screens/Stats';
 import { Milestones } from './screens/Milestones';
 import { Settings } from './screens/Settings';
 import { TileDemo } from './screens/TileDemo';
+import { Locked } from './screens/Locked';
 import { ArrowRightIcon, HistoryIcon } from './components/Icons';
 import { getSyncEngine } from './sync/engine';
 
@@ -41,88 +43,7 @@ function pastWhen(days: number): string {
   return Math.round(days / 365) + (Math.round(days / 365) === 1 ? ' year ago' : ' years ago');
 }
 
-function LockGate({ onUnlocked }: { onUnlocked: () => void }) {
-  const store = getStore();
-  const [pass, setPass] = useState('');
-  const [error, setError] = useState(false);
-  return (
-    <div
-      style={{
-        minHeight: '100vh',
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 16,
-      }}
-    >
-      <h1 className="t-page-title">Oscar</h1>
-      <div className="t-body" style={{ color: 'var(--muted)' }}>
-        Your entries are encrypted — enter your passcode
-      </div>
-      <form
-        onSubmit={async (e) => {
-          e.preventDefault();
-          const ok = await store.unlock(pass);
-          if (ok) onUnlocked();
-          else setError(true);
-        }}
-        style={{ display: 'flex', gap: 8 }}
-      >
-        <input
-          type="password"
-          autoFocus
-          value={pass}
-          onChange={(e) => {
-            setPass(e.target.value);
-            setError(false);
-          }}
-          placeholder="Passcode"
-          style={{
-            fontWeight: 400,
-            boxSizing: 'border-box',
-            height: 32,
-            width: 180,
-            background: 'var(--surface)',
-            border: `1px solid ${error ? 'var(--danger)' : 'var(--border)'}`,
-            borderRadius: 8,
-            padding: '6px 10px',
-            color: 'var(--fg)',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 14,
-            outlineColor: 'var(--accent)',
-          }}
-        />
-        <button
-          type="submit"
-          className="ghost-btn"
-          style={{
-            boxSizing: 'border-box',
-            height: 32,
-            border: '1px solid var(--border)',
-            borderRadius: 8,
-            padding: '0 12px',
-            fontFamily: 'var(--font-sans)',
-            fontSize: 12,
-            fontWeight: 500,
-            cursor: 'pointer',
-            background: 'transparent',
-            color: 'var(--fg)',
-          }}
-        >
-          Unlock
-        </button>
-      </form>
-      {error && (
-        <div className="t-caption" style={{ color: 'var(--danger)' }}>
-          Wrong passcode — try again.
-        </div>
-      )}
-    </div>
-  );
-}
-
-function AppInner() {
+function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
   const store = getStore();
   const state = useStoreState();
   const tooltip = useTooltip();
@@ -157,10 +78,23 @@ function AppInner() {
     setGlyphEvent(mkEvent('confetti', 2400, true));
   }, []);
 
+  // Land in the editor focused after an unlock (App() sets autoFocusEditor).
+  useEffect(() => {
+    if (autoFocusEditor && view === 'editor') taRef.current?.focus();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // File sync engine (no-op where the File System Access API is missing).
   useEffect(() => {
     getSyncEngine().start();
   }, []);
+
+  // Usage analytics: injects the (optional) tracker and gates every event
+  // on the opt-in setting + Do Not Track. A no-op unless a Umami endpoint
+  // is configured and the user has turned this on in Settings.
+  useEffect(() => {
+    syncAnalytics(state.analyticsEnabled);
+  }, [state.analyticsEnabled]);
 
   // Theme side effects.
   useEffect(() => {
@@ -190,7 +124,10 @@ function AppInner() {
     if (s) {
       session.current = null;
       const w = Math.max(0, s.lastWords - s.startWords);
-      if (w > 0) store.addSession({ dayKey: s.dayKey, start: s.start, end: lastTypeRef.current, words: w });
+      if (w > 0) {
+        store.addSession({ dayKey: s.dayKey, start: s.start, end: lastTypeRef.current, words: w });
+        track({ name: 'writing_session', words: w, minutes: Math.round((lastTypeRef.current - s.start) / 60000) });
+      }
     }
   }, [store]);
 
@@ -236,6 +173,7 @@ function AppInner() {
       setCalOpen(false);
       if (v === 'editor' && view !== 'editor') setDayAnim('db-fade .25s ease-out');
       setView(v);
+      track({ name: 'view_changed', view: v });
     },
     [view],
   );
@@ -342,6 +280,7 @@ function AppInner() {
           ArrowRight: () => navDay(7),
           KeyF: toggleFocus,
           KeyD: toggleTheme,
+          KeyL: () => store.lock(),
         };
         const fn = act[e.code];
         if (fn) {
@@ -396,6 +335,20 @@ function AppInner() {
         store.softDeleteDay(curKey);
         setPaletteOpen(false);
         showNotice('Day cleared — restore it from Settings.');
+        track({ name: 'day_cleared' });
+      },
+    });
+  }
+
+  // Lock is offered only when a passcode is set.
+  if (state.lockEnabled) {
+    paletteActions.push({
+      cat: 'View',
+      label: 'Lock Oscar',
+      kbd: '⌥ L',
+      run: () => {
+        setPaletteOpen(false);
+        store.lock();
       },
     });
   }
@@ -623,19 +576,34 @@ function AppInner() {
 
 export default function App() {
   const state = useStoreState();
-  const [, forceRender] = useState(0);
+  const justUnlocked = useRef(false);
 
   if (state.locked) {
     return (
-      <div data-theme={state.theme} style={{ minHeight: '100vh', background: 'var(--bg)', color: 'var(--fg)', fontFamily: 'var(--font-sans)' }}>
-        <LockGate onUnlocked={() => forceRender((n) => n + 1)} />
+      <div
+        data-theme={state.theme}
+        style={{
+          minHeight: '100vh',
+          background: 'var(--bg)',
+          color: 'var(--fg)',
+          fontFamily: 'var(--font-sans)',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+        }}
+      >
+        <Locked
+          onUnlocked={() => {
+            justUnlocked.current = true;
+          }}
+        />
       </div>
     );
   }
 
   return (
     <TooltipProvider theme={state.theme}>
-      <AppInner />
+      <AppInner autoFocusEditor={justUnlocked.current} />
     </TooltipProvider>
   );
 }

@@ -1,9 +1,11 @@
-// Settings: goal, name, theme, focus, Markdown export — plus data
-// management (JSON backup/import, storage meter, trash, passcode).
+// Settings: name, goal, theme, focus, passcode — plus the "Your data"
+// section (storage meter, JSON backup/restore, sync, trash). Layout, copy
+// and spacing match the Oscar.dc.html prototype.
 
 import { useEffect, useRef, useState } from 'react';
 import { getStore, Store } from '../data/store';
 import { useStoreState } from '../data/useStore';
+import { track, analyticsConfigured } from '../data/analytics';
 import { dateOf, todayKey } from '../data/dates';
 import { words, entryKeys } from '../data/selectors';
 import { makeBackup, parseBackup, mergeBackup } from '../data/backup';
@@ -38,6 +40,13 @@ const ghostBtnStyle = {
   color: 'var(--fg)',
 } as const;
 
+const iconBtnStyle = {
+  ...ghostBtnStyle,
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+} as const;
+
 const inputStyle = {
   fontWeight: 400,
   boxSizing: 'border-box',
@@ -59,10 +68,64 @@ function download(filename: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
+// A 44×26 pill switch, matching the prototype's focus-mode toggle.
+function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
+  return (
+    <button
+      onClick={onClick}
+      role="switch"
+      aria-checked={on}
+      aria-label={label}
+      style={{
+        boxSizing: 'border-box',
+        position: 'relative',
+        flexShrink: 0,
+        width: 44,
+        height: 26,
+        border: '1px solid var(--border)',
+        borderRadius: 13,
+        padding: 0,
+        cursor: 'pointer',
+        background: on ? 'var(--accent)' : 'var(--bg)',
+        transition: 'background .18s ease-out',
+      }}
+    >
+      <span
+        style={{
+          position: 'absolute',
+          top: 2,
+          left: on ? 20 : 2,
+          width: 20,
+          height: 20,
+          borderRadius: '50%',
+          background: on ? '#fff' : 'var(--muted)',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+          transition: 'left .18s ease-out',
+        }}
+      />
+    </button>
+  );
+}
+
+const DownloadIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="7 10 12 15 17 10" />
+    <line x1="12" x2="12" y1="15" y2="3" />
+  </svg>
+);
+
+const UploadIcon = () => (
+  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+    <polyline points="17 8 12 3 7 8" />
+    <line x1="12" x2="12" y1="3" y2="15" />
+  </svg>
+);
+
 export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFocus: () => void }) {
   const store = getStore();
   const state = useStoreState();
-  const [copiedAt, setCopiedAt] = useState(0);
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const [passMsg, setPassMsg] = useState<string | null>(null);
   const [passInput, setPassInput] = useState('');
@@ -78,7 +141,9 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
   const usagePct = usage / Store.QUOTA_BYTES;
   const nearQuota = usagePct > 0.8;
   const fmtBytes = (b: number) =>
-    b >= 1024 * 1024 ? (b / 1024 / 1024).toFixed(1) + ' MB' : Math.max(1, Math.round(b / 1024)) + ' KB';
+    b >= 1024 * 1024 ? (b / 1024 / 1024).toFixed(1) + ' MB' : b >= 1024 ? Math.round(b / 1024) + ' KB' : b + ' B';
+  const quotaMb = Math.round(Store.QUOTA_BYTES / (1024 * 1024));
+  const entryCount = entryKeys(state.entries).length;
 
   const dark = state.theme === 'dark';
   const trashKeys = Object.keys(state.trash).sort().reverse();
@@ -99,6 +164,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
             ? `, ${merged.conflicts.length} ${merged.conflicts.length === 1 ? 'conflict' : 'conflicts'} (kept the longer text)`
             : ''),
       );
+      track({ name: 'import_used' });
     } catch (err) {
       setImportMsg(err instanceof Error ? err.message : 'Import failed.');
     }
@@ -139,11 +205,13 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
       <div className="t-body" style={{ color: 'var(--muted)', marginTop: 4 }}>
         Make Oscar yours
       </div>
+
+      {/* ── Preferences ──────────────────────────────────────── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 24 }}>
         <div style={rowStyle}>
           <div>
             <div className="t-body-strong">Name</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
               What should Oscar call you?
             </div>
           </div>
@@ -158,7 +226,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
         <div style={rowStyle}>
           <div>
             <div className="t-body-strong">Daily goal</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
               Words per day
             </div>
           </div>
@@ -177,7 +245,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
         <div style={rowStyle}>
           <div>
             <div className="t-body-strong">Theme</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
               Sets the mood of the page
             </div>
           </div>
@@ -200,237 +268,21 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
         <div style={rowStyle}>
           <div>
             <div className="t-body-strong">Focus mode</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
               Fades the chrome while you write
             </div>
           </div>
-          <button
-            onClick={onToggleFocus}
-            role="switch"
-            aria-checked={focus}
-            style={{
-              boxSizing: 'border-box',
-              position: 'relative',
-              width: 44,
-              height: 26,
-              border: '1px solid var(--border)',
-              borderRadius: 13,
-              padding: 0,
-              cursor: 'pointer',
-              background: focus ? 'var(--accent)' : 'var(--bg)',
-              transition: 'background .18s ease-out',
-            }}
-          >
-            <span
-              style={{
-                position: 'absolute',
-                top: 2,
-                left: focus ? 20 : 2,
-                width: 20,
-                height: 20,
-                borderRadius: '50%',
-                background: focus ? '#fff' : 'var(--muted)',
-                boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
-                transition: 'left .18s ease-out',
-              }}
-            />
-          </button>
-        </div>
-      </div>
-
-      <div style={{ ...rowStyle, marginTop: 8 }}>
-        <div>
-          <div className="t-body-strong">Export</div>
-          <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
-            Entries will be exported as markdown (.md) files
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <button
-            className="ghost-btn"
-            style={ghostBtnStyle}
-            onClick={() => {
-              try {
-                navigator.clipboard.writeText(state.entries[todayKey()] || '');
-              } catch {
-                /* clipboard unavailable */
-              }
-              setCopiedAt(Date.now());
-              setTimeout(() => setCopiedAt(0), 2000);
-            }}
-          >
-            {copiedAt ? 'Copied' : 'Copy today'}
-          </button>
-          <button
-            className="ghost-btn"
-            style={ghostBtnStyle}
-            onClick={() => {
-              const ks = entryKeys(state.entries);
-              const md = ks
-                .map((k) => {
-                  const dd = dateOf(k);
-                  return (
-                    '## ' + MONTHS_FULL[dd.getMonth()] + ' ' + dd.getDate() + ', ' + dd.getFullYear() + '\n\n' + state.entries[k].trim() + '\n'
-                  );
-                })
-                .join('\n');
-              download('oscar.md', md, 'text/markdown');
-            }}
-          >
-            Download all
-          </button>
-        </div>
-      </div>
-
-      {/* ── Data management ──────────────────────────────────── */}
-      <div className="t-eyebrow-sm" style={{ marginTop: 36 }}>
-        Data
-      </div>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 8 }}>
-        <SyncPanel />
-        <div style={rowStyle}>
-          <div>
-            <div className="t-body-strong">Backup</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
-              Everything as JSON — entries, times, hours, settings
-              {importMsg && (
-                <>
-                  <br />
-                  <span style={{ color: 'var(--accent)' }}>{importMsg}</span>
-                </>
-              )}
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button
-              className="ghost-btn"
-              style={ghostBtnStyle}
-              onClick={() =>
-                download(
-                  'oscar-backup-' + todayKey() + '.json',
-                  JSON.stringify(makeBackup(state), null, 2),
-                  'application/json',
-                )
-              }
-            >
-              Export
-            </button>
-            <button className="ghost-btn" style={ghostBtnStyle} onClick={() => fileRef.current?.click()}>
-              Import
-            </button>
-            <input
-              ref={fileRef}
-              type="file"
-              accept="application/json"
-              style={{ display: 'none' }}
-              onChange={(e) => {
-                const f = e.target.files?.[0];
-                if (f) onImportFile(f);
-                e.target.value = '';
-              }}
-            />
-          </div>
+          <Toggle on={focus} onClick={onToggleFocus} label="Focus mode" />
         </div>
 
-        <div style={rowStyle}>
-          <div style={{ flex: 1 }}>
-            <div className="t-body-strong">Storage</div>
-            <div className="t-caption" style={{ color: nearQuota ? 'var(--danger)' : 'var(--muted)', marginTop: 2 }}>
-              {fmtBytes(usage)} of ~{fmtBytes(Store.QUOTA_BYTES)} used
-              {nearQuota ? ' — nearly full, export a backup' : ''}
-            </div>
-            <div
-              style={{
-                height: 4,
-                background: 'color-mix(in srgb, var(--fg) 8%, transparent)',
-                borderRadius: 2,
-                marginTop: 8,
-                maxWidth: 320,
-              }}
-            >
-              <div
-                style={{
-                  height: '100%',
-                  width: Math.max(1, Math.min(100, usagePct * 100)) + '%',
-                  background: nearQuota ? 'var(--danger)' : 'var(--accent)',
-                  borderRadius: 2,
-                }}
-              />
-            </div>
-          </div>
-        </div>
-
+        {/* Passcode — moved up from the data section, now with Lock now. */}
         <div style={rowStyle}>
           <div style={{ flex: 1, minWidth: 0 }}>
-            <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
-              <div>
-                <div className="t-body-strong">Trash</div>
-                <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
-                  {trashKeys.length === 0
-                    ? `Cleared days land here and stay restorable for ${Store.TRASH_TTL_DAYS} days`
-                    : trashKeys.length +
-                      (trashKeys.length === 1 ? ' day' : ' days') +
-                      ` in the trash · cleared automatically after ${Store.TRASH_TTL_DAYS} days`}
-                </div>
-              </div>
-              {trashKeys.length > 0 && (
-                <button
-                  className="ghost-btn"
-                  style={{ ...ghostBtnStyle, flexShrink: 0 }}
-                  onClick={() => store.emptyTrash()}
-                >
-                  Empty trash
-                </button>
-              )}
-            </div>
-            {trashKeys.length > 0 && (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 10 }}>
-                {trashKeys.map((k) => {
-                  const dd = dateOf(k);
-                  return (
-                    <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                      <span className="t-mono" style={{ fontSize: 12, color: 'var(--muted)', minWidth: 90 }}>
-                        {MONTHS_FULL[dd.getMonth()].slice(0, 3)} {dd.getDate()}, {dd.getFullYear()}
-                      </span>
-                      <span
-                        className="t-caption"
-                        style={{
-                          color: 'var(--muted-2)',
-                          flex: 1,
-                          minWidth: 0,
-                          whiteSpace: 'nowrap',
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                        }}
-                      >
-                        {state.trash[k].text.split('\n')[0]} · {words(state.trash[k].text)} words
-                      </span>
-                      <button className="ghost-btn" style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }} onClick={() => store.restoreDay(k)}>
-                        Restore
-                      </button>
-                      <button
-                        className="ghost-btn"
-                        style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }}
-                        aria-label={`Delete ${k} forever`}
-                        onClick={() => store.purgeDay(k)}
-                      >
-                        Delete
-                      </button>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-        </div>
-
-        <div style={rowStyle}>
-          <div style={{ flex: 1 }}>
             <div className="t-body-strong">Passcode</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
               {state.lockEnabled
-                ? 'Entries are encrypted at rest (AES-GCM)'
-                : 'Encrypt your entries at rest with a passcode'}
+                ? 'Your pages are sealed — Oscar asks for the passcode when he wakes'
+                : 'Secure your journal with a passcode that Oscar asks for'}
               {passMsg && (
                 <>
                   <br />
@@ -439,14 +291,14 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
               )}
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+          <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexShrink: 0 }}>
             <input
               type="password"
               value={passInput}
               onChange={(e) => setPassInput(e.target.value)}
               placeholder={state.lockEnabled ? 'Current passcode' : 'New passcode'}
               aria-label={state.lockEnabled ? 'Current passcode' : 'New passcode'}
-              style={{ ...inputStyle, width: 140, fontFamily: 'var(--font-sans)' }}
+              style={{ ...inputStyle, width: 140, fontSize: 13, fontFamily: 'var(--font-sans)' }}
             />
             {changingPass && (
               <input
@@ -455,7 +307,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
                 onChange={(e) => setNewPassInput(e.target.value)}
                 placeholder="New passcode"
                 aria-label="New passcode"
-                style={{ ...inputStyle, width: 140, fontFamily: 'var(--font-sans)' }}
+                style={{ ...inputStyle, width: 140, fontSize: 13, fontFamily: 'var(--font-sans)' }}
               />
             )}
             {state.lockEnabled && !changingPass && (
@@ -483,10 +335,12 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
                   setNewPassInput('');
                 } else if (state.lockEnabled) {
                   const ok = await store.disablePasscode(passInput);
-                  setPassMsg(ok ? 'Passcode removed.' : 'Wrong passcode.');
+                  setPassMsg(ok ? 'Passcode removed — your pages are no longer sealed.' : 'Wrong passcode.');
+                  if (ok) track({ name: 'passcode_removed' });
                 } else {
                   await store.enablePasscode(passInput);
-                  setPassMsg('Passcode set — keep it safe; it cannot be recovered.');
+                  setPassMsg('Passcode set — keep it safe; Oscar can’t recover it.');
+                  track({ name: 'passcode_set' });
                 }
                 setPassInput('');
               }}
@@ -507,7 +361,185 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
                 Cancel
               </button>
             )}
+            {state.lockEnabled && !changingPass && (
+              <button className="ghost-btn" style={ghostBtnStyle} onClick={() => store.lock()}>
+                Lock now
+              </button>
+            )}
           </div>
+        </div>
+
+        {/* Usage analytics (opt-in) — a privacy control, kept with passcode. */}
+        <div style={rowStyle}>
+          <div style={{ maxWidth: 430 }}>
+            <div className="t-body-strong">Usage analytics</div>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
+              Share anonymous, aggregate usage — which screens you open, that a
+              writing session happened and how long — never <em>what</em> you
+              wrote. Off by default; honors Do Not Track.
+              {!analyticsConfigured() && (
+                <>
+                  <br />
+                  <span style={{ color: 'var(--muted-2)' }}>No analytics endpoint is configured, so nothing is sent.</span>
+                </>
+              )}
+            </div>
+          </div>
+          <Toggle
+            on={state.analyticsEnabled}
+            onClick={() => store.setAnalyticsEnabled(!state.analyticsEnabled)}
+            label="Usage analytics"
+          />
+        </div>
+      </div>
+
+      {/* ── Your data ────────────────────────────────────────── */}
+      <div className="t-eyebrow-sm" style={{ marginTop: 36 }}>
+        Your data
+      </div>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginTop: 10 }}>
+        {/* Storage — full-width meter, entries left / usage right. */}
+        <div style={{ ...rowStyle, display: 'block' }}>
+          <div className="t-body-strong">Storage</div>
+          <div
+            style={{
+              height: 4,
+              background: 'color-mix(in srgb, var(--fg) 8%, transparent)',
+              borderRadius: 2,
+              marginTop: 12,
+            }}
+          >
+            <div
+              style={{
+                height: '100%',
+                width: Math.max(1, Math.min(100, Math.round(usagePct * 100))) + '%',
+                background: nearQuota ? 'var(--danger)' : 'var(--accent)',
+                borderRadius: 2,
+                transition: 'width .3s ease-out',
+              }}
+            />
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, marginTop: 8 }}>
+            <span className="t-caption" style={{ color: 'var(--muted)' }}>
+              {entryCount} {entryCount === 1 ? 'entry' : 'entries'}
+            </span>
+            <span className="t-caption" style={{ color: nearQuota ? 'var(--danger)' : 'var(--muted)' }}>
+              {fmtBytes(usage)} of ~{quotaMb} MB used{nearQuota ? ' — nearly full, download a backup' : ''}
+            </span>
+          </div>
+        </div>
+
+        {/* Backup — JSON download / restore (the only export now). */}
+        <div style={rowStyle}>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div className="t-body-strong">Backup</div>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
+              Download or restore your journal as a .json file
+              {importMsg && (
+                <>
+                  <br />
+                  <span style={{ color: 'var(--accent)' }}>{importMsg}</span>
+                </>
+              )}
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+            <button
+              className="ghost-btn"
+              style={iconBtnStyle}
+              onClick={() => {
+                download(
+                  'oscar-backup-' + todayKey() + '.json',
+                  JSON.stringify(makeBackup(state), null, 2),
+                  'application/json',
+                );
+                track({ name: 'export_used' });
+              }}
+            >
+              <DownloadIcon />
+              Download
+            </button>
+            <button className="ghost-btn" style={iconBtnStyle} onClick={() => fileRef.current?.click()}>
+              <UploadIcon />
+              Restore
+            </button>
+            <input
+              ref={fileRef}
+              type="file"
+              accept="application/json"
+              style={{ display: 'none' }}
+              onChange={(e) => {
+                const f = e.target.files?.[0];
+                if (f) onImportFile(f);
+                e.target.value = '';
+              }}
+            />
+          </div>
+        </div>
+
+        <SyncPanel />
+
+        {/* Trash */}
+        <div style={{ ...rowStyle, display: 'block' }}>
+          <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
+            <div>
+              <div className="t-body-strong">Trash</div>
+              <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
+                {trashKeys.length === 0
+                  ? `Cleared pages land here and stay restorable for ${Store.TRASH_TTL_DAYS} days`
+                  : trashKeys.length +
+                    (trashKeys.length === 1 ? ' page' : ' pages') +
+                    ` in the trash · cleared automatically after ${Store.TRASH_TTL_DAYS} days`}
+              </div>
+            </div>
+            {trashKeys.length > 0 && (
+              <button className="ghost-btn" style={{ ...ghostBtnStyle, flexShrink: 0 }} onClick={() => store.emptyTrash()}>
+                Empty trash
+              </button>
+            )}
+          </div>
+          {trashKeys.length > 0 && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 6, marginTop: 12 }}>
+              {trashKeys.map((k) => {
+                const dd = dateOf(k);
+                return (
+                  <div key={k} style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+                    <span className="t-mono" style={{ fontSize: 12, color: 'var(--muted)', minWidth: 90 }}>
+                      {MONTHS_FULL[dd.getMonth()].slice(0, 3)} {dd.getDate()}, {dd.getFullYear()}
+                    </span>
+                    <span
+                      className="t-caption"
+                      style={{
+                        color: 'var(--muted-2)',
+                        flex: 1,
+                        minWidth: 0,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {state.trash[k].text.split('\n')[0]} · {words(state.trash[k].text)} words
+                    </span>
+                    <button
+                      className="ghost-btn"
+                      style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }}
+                      onClick={() => store.restoreDay(k)}
+                    >
+                      Restore
+                    </button>
+                    <button
+                      className="ghost-btn"
+                      style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }}
+                      aria-label={`Delete ${k} forever`}
+                      onClick={() => store.purgeDay(k)}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
       </div>
     </div>

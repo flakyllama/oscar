@@ -13,7 +13,8 @@ import {
   encryptJson,
   decryptJson,
 } from './crypto';
-import type { SyncConflict, SyncDayRecord, SyncSettings } from '../sync/merge';
+import type { SyncConflict, SyncDayRecord, SyncDeviceRecord, SyncSettings } from '../sync/merge';
+import { describeDevice } from '../sync/device';
 
 export const SCHEMA_VERSION = 2;
 
@@ -53,6 +54,7 @@ export interface StoreState {
   goal: number;
   theme: Theme;
   name: string;
+  analyticsEnabled: boolean; // opt-in usage analytics (off by default)
   lockEnabled: boolean;
   locked: boolean; // lock enabled and not yet unlocked this session
   dayMeta: Record<DayKey, DayMeta>;
@@ -60,6 +62,7 @@ export interface StoreState {
   settingsMeta: { updatedAt: number };
   syncConflicts: SyncConflict[];
   syncMeta: SyncFileMeta;
+  devices: Record<string, SyncDeviceRecord>; // synced connected-devices registry
 }
 
 export interface SaveFailure {
@@ -74,6 +77,7 @@ export const KEYS = {
   goal: 'daybook.goal',
   theme: 'daybook.theme',
   name: 'daybook.name',
+  analytics: 'daybook.analytics',
   sessions: 'daybook.sessions',
   trash: 'daybook.trash',
   lock: 'daybook.lock',
@@ -83,6 +87,7 @@ export const KEYS = {
   settingsMeta: 'daybook.settingsMeta',
   syncConflicts: 'daybook.syncConflicts',
   syncMeta: 'daybook.syncMeta',
+  devices: 'daybook.devices',
 } as const;
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'> & {
@@ -141,6 +146,7 @@ export class Store {
       goal: parseInt(this.storage.getItem(KEYS.goal) || '300', 10) || 300,
       theme: (this.storage.getItem(KEYS.theme) as Theme) || 'dark',
       name: this.storage.getItem(KEYS.name) || '',
+      analyticsEnabled: this.storage.getItem(KEYS.analytics) === '1',
       lockEnabled: !!this.lockMeta,
       locked,
       dayMeta: readJson<Record<DayKey, DayMeta>>(this.storage, KEYS.dayMeta, {}),
@@ -152,6 +158,7 @@ export class Store {
         lastSyncAt: 0,
         fileName: null,
       }),
+      devices: readJson<Record<string, SyncDeviceRecord>>(this.storage, KEYS.devices, {}),
     };
   }
 
@@ -319,6 +326,13 @@ export class Store {
     this.persist(KEYS.name, name);
   }
 
+  // Usage-analytics consent: a per-device choice, off by default, and
+  // intentionally not synced (consent shouldn't travel between devices).
+  setAnalyticsEnabled(on: boolean) {
+    this.setState({ ...this.state, analyticsEnabled: on });
+    this.persist(KEYS.analytics, on ? '1' : '0');
+  }
+
   addSession(rec: SessionRecord) {
     const sessions = [...this.state.sessions, rec];
     this.setState({ ...this.state, sessions });
@@ -412,7 +426,12 @@ export class Store {
 
   // Local state as the merge module's shape. Tombstones come from
   // dayMeta (cleared days keep no entry text).
-  syncSnapshot(): { days: Record<DayKey, SyncDayRecord>; hours: Hours; settings: SyncSettings } {
+  syncSnapshot(): {
+    days: Record<DayKey, SyncDayRecord>;
+    hours: Hours;
+    settings: SyncSettings;
+    devices: Record<string, SyncDeviceRecord>;
+  } {
     const days: Record<DayKey, SyncDayRecord> = {};
     const keys = new Set([...Object.keys(this.state.entries), ...Object.keys(this.state.dayMeta)]);
     keys.forEach((k) => {
@@ -430,7 +449,33 @@ export class Store {
       days,
       hours: this.state.hours,
       settings: { goal: this.state.goal, name: this.state.name, updatedAt: this.state.settingsMeta.updatedAt },
+      // Stamp this device into the registry so it travels with every push.
+      devices: { ...this.state.devices, [this.deviceId()]: this.localDeviceRecord() },
     };
+  }
+
+  // This device's registry record. lastSyncAt is bucketed to 5 minutes so a
+  // heartbeat doesn't churn the synced document (which would ping-pong syncs
+  // between devices); addedAt is preserved from the first time it synced.
+  private localDeviceRecord(): SyncDeviceRecord {
+    const id = this.deviceId();
+    const info = describeDevice();
+    const existing = this.state.devices[id];
+    const now = Date.now();
+    return {
+      id,
+      platform: info.platform,
+      browser: info.browser,
+      addedAt: existing?.addedAt ?? now,
+      lastSyncAt: Math.floor(now / 300000) * 300000,
+    };
+  }
+
+  // Apply the merged device registry (no pending enqueue — synced data).
+  setDevices(devices: Record<string, SyncDeviceRecord>) {
+    if (JSON.stringify(devices) === JSON.stringify(this.state.devices)) return;
+    this.setState({ ...this.state, devices });
+    this.persist(KEYS.devices, devices);
   }
 
   // Apply the merged remote-winning records. Never enqueues pending
@@ -599,6 +644,23 @@ export class Store {
     }
     this.setState({ ...this.state, entries, locked: false });
     return true;
+  }
+
+  // Verify a passcode without unlocking — lets the lock screen play its
+  // unlock animation while the journal stays sealed, then unlock() runs for
+  // real once the animation lands.
+  async verify(passcode: string): Promise<boolean> {
+    if (!this.lockMeta) return true;
+    return !!(await verifyPasscode(passcode, this.lockMeta));
+  }
+
+  // Re-seal a live session (Lock now / ⌥L): drop the decrypted entries and
+  // the key from memory and show the lock screen. Entries are already
+  // persisted encrypted, so unlock() re-derives the key and decrypts them.
+  lock() {
+    if (!this.state.lockEnabled || this.state.locked) return;
+    this.lockKey = null;
+    this.setState({ ...this.state, entries: {}, locked: true });
   }
 
   // ── Storage usage ───────────────────────────────────────────
