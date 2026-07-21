@@ -59,7 +59,15 @@ function download(filename: string, text: string, type: string) {
   setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 }
 
-export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFocus: () => void }) {
+export function Settings({
+  focus,
+  onToggleFocus,
+  onReplayWelcome,
+}: {
+  focus: boolean;
+  onToggleFocus: () => void;
+  onReplayWelcome: () => void;
+}) {
   const store = getStore();
   const state = useStoreState();
   const [copiedAt, setCopiedAt] = useState(0);
@@ -234,6 +242,17 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
                 transition: 'left .18s ease-out',
               }}
             />
+          </button>
+        </div>
+        <div style={rowStyle}>
+          <div>
+            <div className="t-body-strong">Say hello again</div>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 2 }}>
+              Replay Oscar's welcome
+            </div>
+          </div>
+          <button className="ghost-btn" onClick={onReplayWelcome} style={ghostBtnStyle}>
+            Show welcome
           </button>
         </div>
       </div>

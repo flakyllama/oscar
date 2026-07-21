@@ -12,6 +12,7 @@ function state(partial: Partial<StoreState> = {}): StoreState {
     goal: 300,
     theme: 'dark',
     name: '',
+    welcomed: true,
     lockEnabled: false,
     locked: false,
     dayMeta: {},

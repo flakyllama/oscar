@@ -38,6 +38,7 @@ export interface WriteProps {
   lastType: number;
   onTyped: (dayKey: string, newWords: number) => void;
   taRef: RefObject<HTMLTextAreaElement>;
+  welcomeGreeting?: string; // one-time placeholder shown right after onboarding
 }
 
 export function Write({
@@ -53,6 +54,7 @@ export function Write({
   lastType,
   onTyped,
   taRef,
+  welcomeGreeting,
 }: WriteProps) {
   const store = getStore();
   const state = useStoreState();
@@ -106,7 +108,8 @@ export function Write({
     }, 42);
   }, []);
 
-  const greeting = (state.name || '').trim() ? 'Welcome back, ' + state.name.trim() : 'Start writing';
+  const greeting =
+    welcomeGreeting ?? ((state.name || '').trim() ? 'Welcome back, ' + state.name.trim() : 'Start writing');
 
   useEffect(() => {
     if (curText.length === 0) {
