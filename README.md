@@ -11,6 +11,11 @@ Built from the design handoff in [`design_handoff_oscar/`](design_handoff_oscar/
 (React + TypeScript + Vite, plain CSS custom properties, no component
 library).
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/oscar-dark.png">
+  <img alt="Oscar's Write screen: the pixel tile, a day heading, session and word-count chips, and a plain-text entry." src="docs/oscar-light.png">
+</picture>
+
 ## Quick start
 
 ```bash
