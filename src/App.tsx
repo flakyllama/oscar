@@ -172,13 +172,6 @@ function AppInner() {
     [store],
   );
 
-  const replayWelcome = useCallback(() => {
-    setPaletteOpen(false);
-    setCalOpen(false);
-    setPostWelcome(false);
-    setWelcome(true);
-  }, []);
-
   // First-visit hello (the prototype greets with confetti on load).
   useEffect(() => {
     setGlyphEvent(mkEvent('confetti', 2400, true));
@@ -500,9 +493,7 @@ function AppInner() {
       {view === 'home' && <Entries onOpen={jumpOffset} />}
       {view === 'stats' && <Stats onJump={jumpOffset} />}
       {view === 'milestones' && <Milestones />}
-      {view === 'settings' && (
-        <Settings focus={focus} onToggleFocus={() => setFocus((f) => !f)} onReplayWelcome={replayWelcome} />
-      )}
+      {view === 'settings' && <Settings focus={focus} onToggleFocus={() => setFocus((f) => !f)} />}
       {view === 'tile-demo' && <TileDemo theme={state.theme} />}
 
       {/* Save-failure banner */}
