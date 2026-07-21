@@ -1,7 +1,6 @@
 /* ──────────────────────────────────────────────────────────────────
    Oscar — theme tokens
-   Ported from the Forma design system (colors_and_type.css) with the
-   Oscar overrides from design_handoff_oscar/README.md.
+   Ported from the Forma design system with Oscar's own overrides.
    ────────────────────────────────────────────────────────────────── */
 
 /* Inter — self-hosted variable font (latin + latin-ext subsets) so the
