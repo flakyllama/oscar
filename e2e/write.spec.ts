@@ -1,5 +1,17 @@
 import { test, expect } from '@playwright/test';
 
+// These specs exercise the editor on a blank slate, so skip the first-run
+// welcome (they model a returning writer who simply has no entry today).
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('daybook.welcomed', '1');
+    } catch {
+      /* ignore */
+    }
+  });
+});
+
 // Writing an entry persists it to localStorage and survives a reload.
 test('typing an entry persists across a reload', async ({ page }) => {
   await page.goto('/'); // start empty (no ?seed)
