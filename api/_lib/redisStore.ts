@@ -32,6 +32,30 @@ export function redisFromEnv(env: Record<string, string | undefined> = process.e
 
 const key = (accountId: string) => `oscar:doc:${accountId}`;
 
+// With automaticDeserialization off, HGETALL comes back as a flat
+// [field, value, field, value, …] array rather than an object. Normalize
+// both shapes to a plain string map so get() doesn't depend on which one
+// the client hands back.
+function toStringMap(res: unknown): Record<string, string> | null {
+  if (res == null) return null;
+  if (Array.isArray(res)) {
+    if (res.length === 0) return null;
+    const out: Record<string, string> = {};
+    for (let i = 0; i + 1 < res.length; i += 2) out[String(res[i])] = String(res[i + 1]);
+    return out;
+  }
+  if (typeof res === 'object') {
+    const entries = Object.entries(res as Record<string, unknown>);
+    if (entries.length === 0) return null;
+    const out: Record<string, string> = {};
+    for (const [k, v] of entries) {
+      out[k] = typeof v === 'string' ? v : v == null ? '' : typeof v === 'object' ? JSON.stringify(v) : String(v);
+    }
+    return out;
+  }
+  return null;
+}
+
 // Returns [status, version] — status 0 ok, 1 unauthorized, 2 conflict.
 const PUT_SCRIPT = `
 local k = KEYS[1]
@@ -62,7 +86,7 @@ return {0, nv}
 export function redisStore(redis: Redis): DocStore {
   return {
     async get(accountId: string): Promise<StoredDoc | null> {
-      const h = await redis.hgetall<Record<string, string>>(key(accountId));
+      const h = toStringMap(await redis.hgetall(key(accountId)));
       if (!h || !h.authHash) return null;
       return {
         authHash: h.authHash,
