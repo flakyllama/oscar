@@ -7,9 +7,9 @@ glyphs when you hit a milestone. Everything is stored locally; nothing
 leaves your device unless you turn on sync — and when you do, it leaves
 encrypted, with the key never going anywhere.
 
-Built from the design handoff in [`design_handoff_oscar/`](design_handoff_oscar/)
-(React + TypeScript + Vite, plain CSS custom properties, no component
-library).
+Built from a design handoff — an HTML prototype and a token/pattern
+reference — as React + TypeScript + Vite, with plain CSS custom
+properties and no component library.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/oscar-dark.png">
@@ -209,10 +209,3 @@ Both suites run on every push and PR via
 [GitHub Actions](.github/workflows/ci.yml) — typecheck, unit tests and
 build in one job, Playwright in another (with the HTML report uploaded on
 failure).
-
-## Design source
-
-`design_handoff_oscar/` holds the original HTML prototype
-(`Oscar.dc.html`) and its pattern/token references — the authoritative
-source for every value, bitmap, and interaction. `PROMPTS.md` there is
-the staged build plan this project was implemented from.
