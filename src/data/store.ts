@@ -55,6 +55,7 @@ export interface StoreState {
   theme: Theme;
   name: string;
   analyticsEnabled: boolean; // opt-in usage analytics (off by default)
+  welcomed: boolean; // first-run welcome flow has been seen
   lockEnabled: boolean;
   locked: boolean; // lock enabled and not yet unlocked this session
   dayMeta: Record<DayKey, DayMeta>;
@@ -78,6 +79,7 @@ export const KEYS = {
   theme: 'daybook.theme',
   name: 'daybook.name',
   analytics: 'daybook.analytics',
+  welcomed: 'daybook.welcomed',
   sessions: 'daybook.sessions',
   trash: 'daybook.trash',
   lock: 'daybook.lock',
@@ -119,6 +121,13 @@ export class Store {
     this.state = this.loadAll();
     this.migrate();
     this.pruneTrash();
+    // Established installs (they already have entries) shouldn't be shown
+    // the first-run welcome, even if this is the first load after the flag
+    // was introduced.
+    if (!this.state.welcomed && (Object.keys(this.state.entries).length > 0 || this.state.lockEnabled)) {
+      this.state = { ...this.state, welcomed: true };
+      this.safeSet(KEYS.welcomed, '1');
+    }
     if (typeof window !== 'undefined') {
       window.addEventListener('storage', this.onStorageEvent);
     }
@@ -147,6 +156,7 @@ export class Store {
       theme: (this.storage.getItem(KEYS.theme) as Theme) || 'dark',
       name: this.storage.getItem(KEYS.name) || '',
       analyticsEnabled: this.storage.getItem(KEYS.analytics) === '1',
+      welcomed: this.storage.getItem(KEYS.welcomed) === '1',
       lockEnabled: !!this.lockMeta,
       locked,
       dayMeta: readJson<Record<DayKey, DayMeta>>(this.storage, KEYS.dayMeta, {}),
@@ -331,6 +341,15 @@ export class Store {
   setAnalyticsEnabled(on: boolean) {
     this.setState({ ...this.state, analyticsEnabled: on });
     this.persist(KEYS.analytics, on ? '1' : '0');
+  }
+
+  // Records that the first-run welcome has been seen (persists across
+  // sessions; not synced — it's a per-device UI milestone).
+  setWelcomed(welcomed = true) {
+    if (this.state.welcomed === welcomed) return;
+    this.setState({ ...this.state, welcomed });
+    if (welcomed) this.persist(KEYS.welcomed, '1');
+    else this.storage.removeItem(KEYS.welcomed);
   }
 
   addSession(rec: SessionRecord) {

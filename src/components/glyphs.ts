@@ -4,6 +4,8 @@
 export const GLYPHS: Record<string, string[]> = {
   smiley: ['00000000', '00100100', '00100100', '00000000', '00000000', '01000010', '00111100', '00000000'],
   smileyBlink: ['00000000', '00000000', '01100110', '00000000', '00000000', '01000010', '00111100', '00000000'],
+  smileyL: ['00000000', '01001000', '01001000', '00000000', '00000000', '01000010', '00111100', '00000000'],
+  smileyR: ['00000000', '00010010', '00010010', '00000000', '00000000', '01000010', '00111100', '00000000'],
   flame: ['00011000', '00011000', '00111100', '00111100', '01111110', '01100110', '01111110', '00111100'],
   flame2: ['00010000', '00011000', '00111100', '01111100', '01111110', '01110110', '01111110', '00111100'],
   check: ['00000000', '00000000', '00000010', '00000100', '00001000', '01010000', '00100000', '00000000'],
@@ -129,8 +131,13 @@ export function mkEvent(name: GlyphName, ms: number, ambient = false): GlyphEven
 }
 
 // Which bitmap frame a glyph shows at the current animation phase.
-export function frameFor(name: GlyphName, phase: number, elapsed: number | null): string | null {
+// 'smileyWork' is a welcome-only frame set (eyes dart while Oscar "works").
+export function frameFor(name: GlyphName | 'smileyWork', phase: number, elapsed: number | null): string | null {
   if (name === 'smiley') return phase % 12 < 2 ? 'smileyBlink' : 'smiley';
+  if (name === 'smileyWork') {
+    const m = phase % 16;
+    return m < 4 ? 'smileyL' : m < 8 ? 'smiley' : m < 12 ? 'smileyR' : m < 14 ? 'smileyBlink' : 'smiley';
+  }
   if (name === 'flame') return phase % 4 < 2 ? 'flame' : 'flame2';
   if (name === 'sun') return phase % 8 < 2 ? 'sun2' : 'sun';
   if (name === 'heart') {

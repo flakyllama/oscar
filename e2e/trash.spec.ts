@@ -1,5 +1,17 @@
 import { test, expect } from '@playwright/test';
 
+// These specs start on an empty editor, so skip the first-run welcome
+// (they model a returning writer who simply has no entry today).
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try {
+      localStorage.setItem('daybook.welcomed', '1');
+    } catch {
+      /* ignore */
+    }
+  });
+});
+
 // Clearing a day is a soft delete: it leaves the editor, lands in the
 // Settings trash, and can be restored intact.
 test('clear a day from the palette, then restore it from Settings', async ({ page }) => {

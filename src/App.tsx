@@ -9,7 +9,7 @@ import { useStoreState } from './data/useStore';
 import { syncAnalytics, track } from './data/analytics';
 import { maybeSeed } from './data/seed';
 import { keyFromOffset, keyShift, dateOf } from './data/dates';
-import { words } from './data/selectors';
+import { words, entryKeys } from './data/selectors';
 import type { GlyphEvent } from './components/glyphs';
 import { mkEvent } from './components/glyphs';
 import type { View } from './types';
@@ -17,6 +17,7 @@ import { TooltipProvider, useTooltip } from './components/Tooltip';
 import { Toolbar } from './components/Toolbar';
 import { CommandPalette, type PaletteAction } from './components/CommandPalette';
 import { Write } from './screens/Write';
+import { Welcome } from './screens/Welcome';
 import { Entries } from './screens/Entries';
 import { Stats } from './screens/Stats';
 import { Milestones } from './screens/Milestones';
@@ -58,6 +59,13 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
   const [lastType, setLastType] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  // First-run onboarding: shown once, when there's no name/history yet.
+  const [welcome, setWelcome] = useState(() => {
+    const snap = store.getSnapshot();
+    return !snap.welcomed && entryKeys(snap.entries).length === 0;
+  });
+  // One-time greeting the editor shows right after the welcome hand-off.
+  const [postWelcome, setPostWelcome] = useState(false);
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const flip = useRef(false);
@@ -72,6 +80,18 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
     clearTimeout(noticeTimer.current);
     noticeTimer.current = setTimeout(() => setNotice(null), 4000);
   }, []);
+
+  // Welcome hand-off: the flow persists the name as typed; here we just
+  // record that it's been seen and cue the editor's one-time greeting.
+  const finishWelcome = useCallback(
+    (finalName: string) => {
+      if (finalName) store.setName(finalName);
+      store.setWelcomed();
+      setWelcome(false);
+      setPostWelcome(true);
+    },
+    [store],
+  );
 
   // First-visit hello (the prototype greets with confetti on load).
   useEffect(() => {
@@ -156,6 +176,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
       setLastType(now);
       lastTypeRef.current = now;
       typedKey.current = dayKey;
+      setPostWelcome(false); // they've started writing — greeting's job is done
       if (session.current && session.current.dayKey !== dayKey) finalizeSession();
       if (!session.current) {
         session.current = { dayKey, start: now, startWords: newWords > 0 ? newWords - 1 : 0, lastWords: newWords };
@@ -171,6 +192,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
     (v: View) => {
       setPaletteOpen(false);
       setCalOpen(false);
+      setPostWelcome(false);
       if (v === 'editor' && view !== 'editor') setDayAnim('db-fade .25s ease-out');
       setView(v);
       track({ name: 'view_changed', view: v });
@@ -182,6 +204,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
     (delta: number) => {
       setOffset((cur) => {
         if (delta > 0 && cur >= 0) return cur;
+        setPostWelcome(false);
         flip.current = !flip.current;
         setDayAnim((delta < 0 ? 'db-in-l-' : 'db-in-r-') + (flip.current ? 'a' : 'b') + ' .28s ease-out');
         setView('editor');
@@ -194,6 +217,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
 
   const jumpOffset = useCallback((off: number) => {
     if (off > 0) return;
+    setPostWelcome(false);
     setView('editor');
     setOffset(off);
     setCalOpen(false);
@@ -229,12 +253,14 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
   }, [store]);
 
   // ── Keyboard model ──────────────────────────────────────────
-  const stateRef = useRef({ view, offset, focus, calOpen, paletteOpen });
-  stateRef.current = { view, offset, focus, calOpen, paletteOpen };
+  const stateRef = useRef({ view, offset, focus, calOpen, paletteOpen, welcome });
+  stateRef.current = { view, offset, focus, calOpen, paletteOpen, welcome };
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const st = stateRef.current;
+      // The welcome flow owns the keyboard (Enter → Start writing lives there).
+      if (st.welcome) return;
       const mod = e.metaKey || e.ctrlKey;
       // ⌘K — the only ⌘ binding.
       if (mod && e.key.toLowerCase() === 'k') {
@@ -368,6 +394,14 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
   const chromeOpacity = focus && view === 'editor' ? 0.05 : 1;
   const pastBannerOn = view === 'editor' && offset < 0;
 
+  // Right after the welcome, greet by name once — then the editor falls
+  // back to its usual "Welcome back" / "Start writing" placeholder.
+  const welcomeGreeting = postWelcome
+    ? (state.name || '').trim()
+      ? 'Nice to meet you, ' + state.name.trim() + '. What did today look like?'
+      : 'What did today look like from where you stood?'
+    : undefined;
+
   return (
     <div
       data-theme={state.theme}
@@ -382,6 +416,16 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
         transition: 'background .15s',
       }}
     >
+      {welcome ? (
+        <Welcome
+          theme={state.theme}
+          initialName={state.name}
+          onNameChange={(n) => store.setName(n)}
+          onStart={() => store.setWelcomed()}
+          onFinish={finishWelcome}
+        />
+      ) : (
+      <>
       {view === 'editor' && (
         <Write
           offset={offset}
@@ -396,6 +440,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
           lastType={lastType}
           onTyped={onTyped}
           taRef={taRef}
+          welcomeGreeting={welcomeGreeting}
         />
       )}
       {view === 'home' && <Entries onOpen={jumpOffset} />}
@@ -570,6 +615,8 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
       </div>
 
       {paletteOpen && <CommandPalette actions={paletteActions} onClose={() => setPaletteOpen(false)} onGoDate={goDate} />}
+      </>
+      )}
     </div>
   );
 }

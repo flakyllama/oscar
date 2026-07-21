@@ -29,6 +29,19 @@ export interface LockTileState {
   focus: boolean; // passcode input focused → brighter glow
 }
 
+// Welcome / first-run tile state. When set, the tile drops its editor
+// behaviour (word count, energy, events) and shows Oscar's smiley: idle,
+// "working" (eyes dart) while the loading messages type, then blank once
+// he hands off to the editor. The gold ripple + brighter glow are the
+// flourishes at the end of the handoff.
+export interface WelcomeTileState {
+  reacting: boolean; // name field focused / just typed → celebrate
+  phase: 'intro' | 'work' | 'done';
+  rippleAt: number | null; // gold ripple start (epoch ms), or null
+}
+
+const WELCOME_RIPPLE = 'oklch(0.85 0.14 95)'; // warm gold
+
 export interface PixelTileProps {
   wordCount: number;
   progress: number; // 0..1 toward goal
@@ -42,6 +55,7 @@ export interface PixelTileProps {
   demoGlyph?: string; // demo/storybook: force a glyph ('auto' = live)
   onCelebrate?: (ev: GlyphEvent) => void; // 5 rapid clicks → confetti
   locked?: LockTileState | null; // lock-screen mode (overrides the glyph stage)
+  welcome?: WelcomeTileState | null; // first-run welcome mode (see above)
 }
 
 const EQ_PROFILE = [4, 6, 3, 8, 5, 7, 2, 6];
@@ -60,6 +74,7 @@ export const PixelTile = forwardRef<PixelTileHandle, PixelTileProps>(function Pi
     demoGlyph = 'auto',
     onCelebrate,
     locked = null,
+    welcome = null,
   },
   ref,
 ) {
@@ -139,6 +154,20 @@ export const PixelTile = forwardRef<PixelTileHandle, PixelTileProps>(function Pi
     glyphName = u ? (now - u < 450 ? 'lockOpen' : 'smiley') : lockDenyOn ? 'lockDeny' : 'lock';
     celebrating = !!u;
     glyph = glyphName === 'smiley' ? frameFor('smiley', phase, null) : glyphName === 'lockDeny' ? 'lock' : glyphName;
+  } else if (welcome) {
+    // Welcome overrides everything: always the smiley, in one of three
+    // states. 'blank' is a real (all-zero) bitmap, so the equalizer never
+    // shows through.
+    glyphName = 'smiley';
+    celebrating = welcome.reacting;
+    glyph =
+      welcome.phase === 'done'
+        ? 'blank'
+        : welcome.phase === 'work'
+          ? frameFor('smileyWork', phase, null)
+          : welcome.reacting
+            ? frameFor('smiley', phase, null)
+            : 'smiley';
   } else if (demoGlyph !== 'auto' && !demoHeld) {
     glyphName = demoGlyph as GlyphName;
     celebrating = true;
@@ -239,15 +268,24 @@ export const PixelTile = forwardRef<PixelTileHandle, PixelTileProps>(function Pi
 
   if (pop && now - pop.at < 450) grid[pop.r][pop.c] = 'var(--fg)';
 
+  // The welcome flow drives its ripple by prop (gold, from the tile
+  // centre, slower); the editor tile ripples on click (glyph-coloured).
+  const activeRipple = welcome
+    ? welcome.rippleAt != null
+      ? { r: 3.5, c: 3.5, at: welcome.rippleAt }
+      : null
+    : ripple;
+  const rippleDur = welcome ? 1500 : 800;
+  const rippleColor = welcome ? WELCOME_RIPPLE : glyphColor;
   let rippleOn = false;
-  if (ripple) {
-    const rel = now - ripple.at;
-    if (rel < 800) {
+  if (activeRipple) {
+    const rel = now - activeRipple.at;
+    if (rel < rippleDur) {
       rippleOn = true;
-      const rad = rel / 110;
+      const rad = rel / (rippleDur / 7.3);
       for (let r = 0; r < 8; r++)
         for (let c = 0; c < 8; c++)
-          if (Math.abs(Math.hypot(r - ripple.r, c - ripple.c) - rad) < 0.85) grid[r][c] = glyphColor;
+          if (Math.abs(Math.hypot(r - activeRipple.r, c - activeRipple.c) - rad) < 0.85) grid[r][c] = rippleColor;
     }
   }
 
@@ -286,22 +324,32 @@ export const PixelTile = forwardRef<PixelTileHandle, PixelTileProps>(function Pi
   else if (confetti) pulseBoost = 0.15 + 0.1 * Math.abs(Math.sin(phase * 0.9));
   else if (celebrating) pulseBoost = 0.15;
   const breathe = 0.05 * Math.sin(phase * 0.25);
-  const rippleGlow = ripple && now - ripple.at < 800 ? 0.35 * (1 - (now - ripple.at) / 800) : 0;
+  const rippleGlow =
+    activeRipple && now - activeRipple.at < rippleDur ? 0.35 * (1 - (now - activeRipple.at) / rippleDur) : 0;
   const glowMul = theme === 'dark' ? 1 : 1.7;
-  let glowA =
-    ((wordCount === 0 && !celebrating
-      ? 0
-      : (0.12 + 0.4 * p) * glowStrength + (recentType ? 0.12 : 0) + (celebrating ? 0.05 + pulseBoost : breathe)) +
-      rippleGlow) *
-    glowMul;
-  if (locked)
+  let glowA: number;
+  if (locked) {
     glowA = ((locked.unlockAt ? 0.5 : lockDenyOn ? 0.5 : locked.focus ? 0.32 : 0.16 + breathe) + rippleGlow) * glowMul;
+  } else if (welcome) {
+    glowA = ((celebrating ? 0.3 + pulseBoost : 0.18 + breathe) + rippleGlow) * glowMul;
+    // Brighter, pulsing while Oscar is "working" through the loading messages.
+    if (welcome.phase === 'work') glowA = (0.42 + 0.26 * (0.5 + 0.5 * Math.sin(phase * 0.5)) + rippleGlow) * glowMul;
+  } else {
+    glowA =
+      ((wordCount === 0 && !celebrating
+        ? 0
+        : (0.12 + 0.4 * p) * glowStrength + (recentType ? 0.12 : 0) + (celebrating ? 0.05 + pulseBoost : breathe)) +
+        rippleGlow) *
+      glowMul;
+  }
   const glowColor =
     confetti || glyphName === 'confetti ball'
       ? `var(--tag-flair-${(Math.floor(phase / 6) % 8) + 1})`
       : locked && rippleGlow > 0
         ? 'oklch(0.85 0.14 95)'
-        : glyphColor;
+        : welcome && rippleGlow > 0
+          ? WELCOME_RIPPLE
+          : glyphColor;
   const iconGlow = `0 0 ${Math.round(16 + 44 * p + (celebrating ? 28 : 0) + rippleGlow * 40)}px color-mix(in srgb, ${glowColor} ${Math.max(0, Math.min(100, Math.round(glowA * 100)))}%, transparent)`;
 
   // ── Pointer handlers ────────────────────────────────────────
@@ -326,24 +374,26 @@ export const PixelTile = forwardRef<PixelTileHandle, PixelTileProps>(function Pi
     placeContent: 'center',
     boxShadow: iconGlow,
     transition: 'box-shadow .5s',
-    cursor: locked ? 'default' : 'pointer',
+    cursor: locked || welcome ? 'default' : 'pointer',
     ...(lockDenyOn ? { animation: `db-shake-${locked!.denyN % 2 ? 'a' : 'b'} .4s ease-in-out` } : {}),
   };
 
+  // The welcome tile is passive (no hover highlight or click ripple) — it's
+  // narrated by the flow, not poked by the reader.
   return (
     <div
       style={style}
       onMouseMove={
-        locked
+        locked || welcome
           ? undefined
           : (e) => {
               const { r, c } = cellAt(e);
               setHoverCell((cur) => (cur && cur.r === r && cur.c === c ? cur : { r, c }));
             }
       }
-      onMouseLeave={locked ? undefined : () => setHoverCell(null)}
+      onMouseLeave={locked || welcome ? undefined : () => setHoverCell(null)}
       onClick={
-        locked
+        locked || welcome
           ? undefined
           : (e) => {
               const { r, c } = cellAt(e);
