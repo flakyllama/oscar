@@ -12,6 +12,7 @@ function state(partial: Partial<StoreState> = {}): StoreState {
     goal: 300,
     theme: 'dark',
     name: '',
+    analyticsEnabled: false,
     welcomed: true,
     lockEnabled: false,
     locked: false,
@@ -20,6 +21,7 @@ function state(partial: Partial<StoreState> = {}): StoreState {
     settingsMeta: { updatedAt: 0 },
     syncConflicts: [],
     syncMeta: { deviceId: '', lastSyncAt: 0, fileName: null },
+    devices: {},
     ...partial,
   };
 }

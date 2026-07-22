@@ -159,3 +159,56 @@ describe('mergeSync — hours, time and settings', () => {
     expect(r.settingsChangedLocally).toBe(true);
   });
 });
+
+describe('mergeSync — device registry', () => {
+  const dev = (id: string, lastSyncAt: number, addedAt = BEFORE) => ({
+    id,
+    platform: 'Mac',
+    browser: 'Safari',
+    addedAt,
+    lastSyncAt,
+  });
+
+  it('defaults to an empty registry when neither side has one', () => {
+    const r = mergeSync(side(), side(), T0, NOW);
+    expect(r.devices).toEqual({});
+  });
+
+  it('unions devices by id, taking one-sided records as-is', () => {
+    const r = mergeSync(
+      side({}, { devices: { a: dev('a', AFTER_A) } }),
+      side({}, { devices: { b: dev('b', AFTER_A) } }),
+      T0,
+      NOW,
+    );
+    expect(Object.keys(r.devices).sort()).toEqual(['a', 'b']);
+  });
+
+  it('keeps the freshest record (higher lastSyncAt) per id', () => {
+    const r = mergeSync(
+      side({}, { devices: { a: dev('a', AFTER_A, BEFORE) } }),
+      side({}, { devices: { a: dev('a', AFTER_B, BEFORE) } }),
+      T0,
+      NOW,
+    );
+    expect(r.devices.a.lastSyncAt).toBe(AFTER_B);
+  });
+
+  it('is idempotent — re-merging merged output is a no-op', () => {
+    const merged = mergeSync(
+      side({}, { devices: { a: dev('a', AFTER_A) } }),
+      side({}, { devices: { a: dev('a', AFTER_B), b: dev('b', AFTER_A) } }),
+      T0,
+      NOW,
+    );
+    const remerged = mergeSync(
+      { ...side(), devices: merged.devices },
+      { ...side(), devices: merged.devices },
+      NOW,
+      NOW,
+    );
+    expect(remerged.devices).toEqual(merged.devices);
+    expect(remerged.changedLocally).toEqual([]);
+    expect(remerged.conflicts).toEqual([]);
+  });
+});

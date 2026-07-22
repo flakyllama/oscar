@@ -31,12 +31,13 @@ test('clear a day from the palette, then restore it from Settings', async ({ pag
 
   // The cleared day is listed in the trash.
   await page.keyboard.press('Alt+KeyT');
-  await expect(page.getByText(/1 day in the trash/)).toBeVisible();
+  await expect(page.getByText(/1 page in the trash/)).toBeVisible();
   await expect(page.getByText('Something I will clear and then want back.')).toBeVisible();
 
-  // Restoring puts the text back on the day it came from.
-  await page.getByRole('button', { name: 'Restore' }).click();
-  await expect(page.getByText(/Cleared days land here/)).toBeVisible(); // trash now empty
+  // Restoring puts the text back on the day it came from. (Scope to the
+  // trash row's per-day button — the Backup card also has a "Restore".)
+  await page.getByRole('button', { name: /Restore \d{4}-\d{2}-\d{2}/ }).click();
+  await expect(page.getByText(/Cleared pages land here/)).toBeVisible(); // trash now empty
   await page.keyboard.press('Alt+KeyW');
   await expect(page.getByLabel('Journal entry')).toHaveValue('Something I will clear and then want back.');
 });
@@ -50,10 +51,10 @@ test('delete a trashed day permanently', async ({ page }) => {
   await page.getByRole('option', { name: /Clear this day/ }).click();
 
   await page.keyboard.press('Alt+KeyT');
-  await expect(page.getByText(/1 day in the trash/)).toBeVisible();
+  await expect(page.getByText(/1 page in the trash/)).toBeVisible();
 
   await page.getByRole('button', { name: /forever/ }).click();
-  await expect(page.getByText(/Cleared days land here/)).toBeVisible();
+  await expect(page.getByText(/Cleared pages land here/)).toBeVisible();
   await expect(page.getByText('Gone for good.')).toBeHidden();
 });
 

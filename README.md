@@ -3,18 +3,16 @@
 A minimal, keyboard-first daily writing journal. One entry per calendar
 day, a plain-text editor with a typewriter feel, and an 8×8 pixel tile
 that reacts to your writing — an equalizer while you type, celebration
-glyphs when you hit a milestone. Everything is stored locally; nothing
-leaves your device unless you turn on sync — and when you do, it leaves
-encrypted, with the key never going anywhere.
+glyphs when you hit a milestone. Everything is stored locally; your
+writing never leaves your device unless you turn on sync — and when you
+do, it leaves encrypted, with the key never going anywhere. The optional
+usage analytics (below) only ever count *that* you did something, never
+*what* you wrote.
 
-Built from a design handoff — an HTML prototype and a token/pattern
-reference — as React + TypeScript + Vite, with plain CSS custom
-properties and no component library.
+Built with React + TypeScript + Vite, plain CSS custom properties, and
+no component library.
 
-<picture>
-  <source media="(prefers-color-scheme: dark)" srcset="docs/oscar-dark.png">
-  <img alt="Oscar's Write screen: the pixel tile, a day heading, session and word-count chips, and a plain-text entry." src="docs/oscar-light.png">
-</picture>
+<img alt="Oscar's Write screen: the pixel tile, a day heading, session and word-count chips, and a plain-text entry." src="docs/oscar-dark.png">
 
 ## Quick start
 
@@ -58,8 +56,8 @@ Six views, reachable from the floating toolbar or the keyboard:
   year heatmap (milestone days are colored by their glyph), a pace
   forecast, and vocabulary facts.
 - **Milestones** — 20 achievements in 5 groups, earned dates in tooltips.
-- **Settings** — name, daily goal, theme, focus mode, Markdown export,
-  and all the data controls below.
+- **Settings** — name, daily goal, theme, focus mode, and all the data
+  controls below.
 - **Tile demo** — see `#tile-demo` above.
 
 ### Keyboard model
@@ -140,6 +138,16 @@ dates** (`YYYY-MM-DD`), and all date math is DST-safe — see the tests in
   `dayMeta`, so purging the trash never resurrects a day elsewhere.
 - **Storage meter** — Settings shows usage against the ~5 MB budget and
   warns before you hit it.
+- **Usage analytics** — on by default but opt-out from Settings, over
+  [Umami](https://umami.is) (privacy-first, cookieless). Active only when
+  `VITE_UMAMI_SRC` and `VITE_UMAMI_WEBSITE_ID` are set at build time; even
+  then, no tracker script loads if the user opts out or Do Not Track is on.
+  What's sent is a small, typed allowlist of anonymous events — screen
+  changes, that a writing session happened (with its word count/minutes),
+  sync/passcode/export actions — and **never** entry text, titles, search
+  terms, or day keys. The whole layer lives in
+  [`analytics.ts`](src/data/analytics.ts); if an event isn't in its union,
+  it can't be sent.
 
 ### Sync (optional)
 
@@ -192,7 +200,7 @@ npm test          # Vitest unit tests (node env)
 npm run test:e2e  # Playwright E2E (boots the dev server itself)
 ```
 
-**86 unit tests** cover the load-bearing logic: local-date/DST day keys,
+**93 unit tests** cover the load-bearing logic: local-date/DST day keys,
 streak and word-count selectors, backup merge, the passcode lifecycle
 (set / change / unlock, re-keying at rest), the trash lifecycle (soft
 delete / restore / purge / TTL expiry), the sync merge (LWW + tombstones
