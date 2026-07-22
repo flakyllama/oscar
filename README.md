@@ -138,16 +138,16 @@ dates** (`YYYY-MM-DD`), and all date math is DST-safe — see the tests in
   `dayMeta`, so purging the trash never resurrects a day elsewhere.
 - **Storage meter** — Settings shows usage against the ~5 MB budget and
   warns before you hit it.
-- **Usage analytics** — content-free product analytics over
+- **Usage analytics** — on by default but opt-out from Settings, over
   [Umami](https://umami.is) (privacy-first, cookieless). Active only when
-  `VITE_UMAMI_SRC` and `VITE_UMAMI_WEBSITE_ID` are set at build time (i.e. in
-  production) — there's no per-user opt-in — and even then no tracker script
-  loads when the browser asks for Do Not Track. What's sent is a small, typed
-  allowlist of anonymous events — screen changes, that a writing session
-  happened (with its word count/minutes), sync/passcode/export actions — and
-  **never** entry text, titles, search terms, or day keys. The whole layer
-  lives in [`analytics.ts`](src/data/analytics.ts); if an event isn't in its
-  union, it can't be sent.
+  `VITE_UMAMI_SRC` and `VITE_UMAMI_WEBSITE_ID` are set at build time; even
+  then, no tracker script loads if the user opts out or Do Not Track is on.
+  What's sent is a small, typed allowlist of anonymous events — screen
+  changes, that a writing session happened (with its word count/minutes),
+  sync/passcode/export actions — and **never** entry text, titles, search
+  terms, or day keys. The whole layer lives in
+  [`analytics.ts`](src/data/analytics.ts); if an event isn't in its union,
+  it can't be sent.
 
 ### Sync (optional)
 

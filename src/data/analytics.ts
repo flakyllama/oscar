@@ -7,10 +7,10 @@
 // entry text, titles, search terms, or day keys, and the type system won't
 // let one exist. If it isn't in this union, it can't be tracked.
 //
-// It runs for all production usage — there is no per-user opt-in. Nothing
-// loads or sends unless both hold:
+// Nothing loads or sends unless all three hold:
 //   1. a Umami endpoint is configured at build time (VITE_UMAMI_* below),
-//   2. the browser isn't asking for Do Not Track.
+//   2. the user hasn't opted out (Settings → Usage analytics; on by default),
+//   3. the browser isn't asking for Do Not Track.
 // Umami's own script auto-tracks a single anonymous pageview per load
 // (the "visit"); these custom events add feature-usage on top.
 
@@ -56,16 +56,16 @@ function doNotTrack(): boolean {
   return dnt === '1' || dnt === 'yes';
 }
 
-let enabled = false;
+let consented = false;
 let injected = false;
 let queue: AnalyticsEvent[] = [];
 
-// Called once by App on mount. Turns analytics on for all production usage
-// where a Umami endpoint is configured, unless the browser asks for Do Not
-// Track. There is no per-user opt-in.
-export function initAnalytics(): void {
-  enabled = analyticsConfigured() && !doNotTrack();
-  if (enabled && !injected) inject();
+// Called by App on mount and whenever the setting changes. Injects the
+// tracker the first time it's enabled; a later opt-out just stops events
+// (the already-loaded script can't be unloaded, but it goes silent).
+export function syncAnalytics(enabled: boolean): void {
+  consented = enabled && analyticsConfigured() && !doNotTrack();
+  if (consented && !injected) inject();
 }
 
 function inject(): void {
@@ -93,9 +93,9 @@ function flush(): void {
 }
 
 export function track(event: AnalyticsEvent): void {
-  if (!enabled || typeof window === 'undefined') return;
+  if (!consented || typeof window === 'undefined') return;
   // Events fired before the tracker finished loading are queued and flushed
-  // on its `load`, so the first interactions of a session aren't dropped.
+  // on its `load`, so the first interaction after opt-in isn't dropped.
   if (window.umami) send(event);
   else queue.push(event);
 }

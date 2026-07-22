@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import './styles/app.css';
 import { getStore } from './data/store';
 import { useStoreState } from './data/useStore';
-import { initAnalytics, track } from './data/analytics';
+import { syncAnalytics, track } from './data/analytics';
 import { maybeSeed } from './data/seed';
 import { keyFromOffset, keyShift, dateOf } from './data/dates';
 import { words, entryKeys } from './data/selectors';
@@ -109,12 +109,12 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
     getSyncEngine().start();
   }, []);
 
-  // Usage analytics: injects the (optional) tracker for all production
-  // usage. A no-op unless a Umami endpoint is configured at build time, and
-  // silent when the browser asks for Do Not Track.
+  // Usage analytics: injects the (optional) tracker and gates every event
+  // on the opt-in setting + Do Not Track. A no-op unless a Umami endpoint
+  // is configured and the user has turned this on in Settings.
   useEffect(() => {
-    initAnalytics();
-  }, []);
+    syncAnalytics(state.analyticsEnabled);
+  }, [state.analyticsEnabled]);
 
   // Theme side effects.
   useEffect(() => {

@@ -456,6 +456,21 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
 
         <SyncPanel />
 
+        {/* Usage analytics — anonymous, content-free product usage. */}
+        <div style={rowStyle}>
+          <div style={{ maxWidth: 430 }}>
+            <div className="t-body-strong">Usage analytics</div>
+            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
+              Share anonymous usage stats — never <em>what</em> you wrote.
+            </div>
+          </div>
+          <Toggle
+            on={state.analyticsEnabled}
+            onClick={() => store.setAnalyticsEnabled(!state.analyticsEnabled)}
+            label="Usage analytics"
+          />
+        </div>
+
         {/* Trash */}
         <div style={{ ...rowStyle, display: 'block' }}>
           <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 12 }}>
