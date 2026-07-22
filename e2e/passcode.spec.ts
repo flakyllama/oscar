@@ -22,7 +22,7 @@ test('passcode locks and unlocks the journal', async ({ page }) => {
   // Wrong passcode is rejected.
   await gate.fill('wrong');
   await page.getByRole('button', { name: 'Unlock' }).click();
-  await expect(page.getByText(/Wrong passcode/)).toBeVisible();
+  await expect(page.getByText(/recognize that passcode/)).toBeVisible();
 
   // Correct passcode unlocks and the seeded entry is readable again.
   await page.getByPlaceholder('Passcode').fill('open-sesame');

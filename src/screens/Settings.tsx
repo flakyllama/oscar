@@ -523,6 +523,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
                     <button
                       className="ghost-btn"
                       style={{ ...ghostBtnStyle, height: 26, fontSize: 11 }}
+                      aria-label={`Restore ${k}`}
                       onClick={() => store.restoreDay(k)}
                     >
                       Restore
