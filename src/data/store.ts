@@ -54,7 +54,6 @@ export interface StoreState {
   goal: number;
   theme: Theme;
   name: string;
-  analyticsEnabled: boolean; // opt-in usage analytics (off by default)
   welcomed: boolean; // first-run welcome flow has been seen
   lockEnabled: boolean;
   locked: boolean; // lock enabled and not yet unlocked this session
@@ -78,7 +77,6 @@ export const KEYS = {
   goal: 'daybook.goal',
   theme: 'daybook.theme',
   name: 'daybook.name',
-  analytics: 'daybook.analytics',
   welcomed: 'daybook.welcomed',
   sessions: 'daybook.sessions',
   trash: 'daybook.trash',
@@ -155,7 +153,6 @@ export class Store {
       goal: parseInt(this.storage.getItem(KEYS.goal) || '300', 10) || 300,
       theme: (this.storage.getItem(KEYS.theme) as Theme) || 'dark',
       name: this.storage.getItem(KEYS.name) || '',
-      analyticsEnabled: this.storage.getItem(KEYS.analytics) === '1',
       welcomed: this.storage.getItem(KEYS.welcomed) === '1',
       lockEnabled: !!this.lockMeta,
       locked,
@@ -334,13 +331,6 @@ export class Store {
   setName(name: string) {
     this.setState({ ...this.state, name, settingsMeta: this.touchSettings() });
     this.persist(KEYS.name, name);
-  }
-
-  // Usage-analytics consent: a per-device choice, off by default, and
-  // intentionally not synced (consent shouldn't travel between devices).
-  setAnalyticsEnabled(on: boolean) {
-    this.setState({ ...this.state, analyticsEnabled: on });
-    this.persist(KEYS.analytics, on ? '1' : '0');
   }
 
   // Records that the first-run welcome has been seen (persists across

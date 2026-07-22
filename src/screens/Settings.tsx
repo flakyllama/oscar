@@ -5,7 +5,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { getStore, Store } from '../data/store';
 import { useStoreState } from '../data/useStore';
-import { track, analyticsConfigured } from '../data/analytics';
+import { track } from '../data/analytics';
 import { dateOf, todayKey } from '../data/dates';
 import { words, entryKeys } from '../data/selectors';
 import { makeBackup, parseBackup, mergeBackup } from '../data/backup';
@@ -282,7 +282,7 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
             <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
               {state.lockEnabled
                 ? 'Your pages are sealed — Oscar asks for the passcode when he wakes'
-                : 'Secure your journal with a passcode that Oscar asks for'}
+                : 'Secure your journal with a passcode'}
               {passMsg && (
                 <>
                   <br />
@@ -367,29 +367,6 @@ export function Settings({ focus, onToggleFocus }: { focus: boolean; onToggleFoc
               </button>
             )}
           </div>
-        </div>
-
-        {/* Usage analytics (opt-in) — a privacy control, kept with passcode. */}
-        <div style={rowStyle}>
-          <div style={{ maxWidth: 430 }}>
-            <div className="t-body-strong">Usage analytics</div>
-            <div className="t-caption" style={{ color: 'var(--muted)', marginTop: 4 }}>
-              Share anonymous, aggregate usage — which screens you open, that a
-              writing session happened and how long — never <em>what</em> you
-              wrote. Off by default; honors Do Not Track.
-              {!analyticsConfigured() && (
-                <>
-                  <br />
-                  <span style={{ color: 'var(--muted-2)' }}>No analytics endpoint is configured, so nothing is sent.</span>
-                </>
-              )}
-            </div>
-          </div>
-          <Toggle
-            on={state.analyticsEnabled}
-            onClick={() => store.setAnalyticsEnabled(!state.analyticsEnabled)}
-            label="Usage analytics"
-          />
         </div>
       </div>
 

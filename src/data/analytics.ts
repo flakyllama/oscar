@@ -7,10 +7,10 @@
 // entry text, titles, search terms, or day keys, and the type system won't
 // let one exist. If it isn't in this union, it can't be tracked.
 //
-// Nothing loads or sends unless all three hold:
+// It runs for all production usage — there is no per-user opt-in. Nothing
+// loads or sends unless both hold:
 //   1. a Umami endpoint is configured at build time (VITE_UMAMI_* below),
-//   2. the user has opted in (Settings → Usage analytics; off by default),
-//   3. the browser isn't asking for Do Not Track.
+//   2. the browser isn't asking for Do Not Track.
 // Umami's own script auto-tracks a single anonymous pageview per load
 // (the "visit"); these custom events add feature-usage on top.
 
@@ -42,9 +42,9 @@ declare global {
 const SRC = ((import.meta.env.VITE_UMAMI_SRC as string | undefined) ?? '').trim();
 const WEBSITE_ID = ((import.meta.env.VITE_UMAMI_WEBSITE_ID as string | undefined) ?? '').trim();
 
-// True when a Umami endpoint is wired up at build time. Surfaced in
-// Settings so the toggle can be honest about whether anything is sent.
-export function analyticsConfigured(): boolean {
+// True when a Umami endpoint is wired up at build time (i.e. a production
+// build). Empty in dev, so nothing loads or sends locally.
+function analyticsConfigured(): boolean {
   return SRC !== '' && WEBSITE_ID !== '';
 }
 
@@ -56,16 +56,16 @@ function doNotTrack(): boolean {
   return dnt === '1' || dnt === 'yes';
 }
 
-let consented = false;
+let enabled = false;
 let injected = false;
 let queue: AnalyticsEvent[] = [];
 
-// Called by App on mount and whenever the opt-in setting changes. Injects
-// the tracker the first time consent is granted; a later opt-out just stops
-// events (the already-loaded script can't be unloaded, but it goes silent).
-export function syncAnalytics(enabled: boolean): void {
-  consented = enabled && analyticsConfigured() && !doNotTrack();
-  if (consented && !injected) inject();
+// Called once by App on mount. Turns analytics on for all production usage
+// where a Umami endpoint is configured, unless the browser asks for Do Not
+// Track. There is no per-user opt-in.
+export function initAnalytics(): void {
+  enabled = analyticsConfigured() && !doNotTrack();
+  if (enabled && !injected) inject();
 }
 
 function inject(): void {
@@ -93,9 +93,9 @@ function flush(): void {
 }
 
 export function track(event: AnalyticsEvent): void {
-  if (!consented || typeof window === 'undefined') return;
+  if (!enabled || typeof window === 'undefined') return;
   // Events fired before the tracker finished loading are queued and flushed
-  // on its `load`, so the first interaction after opt-in isn't dropped.
+  // on its `load`, so the first interactions of a session aren't dropped.
   if (window.umami) send(event);
   else queue.push(event);
 }

@@ -5,9 +5,9 @@ day, a plain-text editor with a typewriter feel, and an 8×8 pixel tile
 that reacts to your writing — an equalizer while you type, celebration
 glyphs when you hit a milestone. Everything is stored locally; your
 writing never leaves your device unless you turn on sync — and when you
-do, it leaves encrypted, with the key never going anywhere. Optional,
-opt-in usage analytics (below) only ever count *that* you did something,
-never *what* you wrote.
+do, it leaves encrypted, with the key never going anywhere. The optional
+usage analytics (below) only ever count *that* you did something, never
+*what* you wrote.
 
 Built with React + TypeScript + Vite, plain CSS custom properties, and
 no component library.
@@ -138,16 +138,16 @@ dates** (`YYYY-MM-DD`), and all date math is DST-safe — see the tests in
   `dayMeta`, so purging the trash never resurrects a day elsewhere.
 - **Storage meter** — Settings shows usage against the ~5 MB budget and
   warns before you hit it.
-- **Usage analytics** — off by default and opt-in from Settings, over
-  [Umami](https://umami.is) (privacy-first, cookieless). Enabled only when
-  `VITE_UMAMI_SRC` and `VITE_UMAMI_WEBSITE_ID` are set at build time; even
-  then, no tracker script loads until the user opts in and Do Not Track is
-  off. What's sent is a small, typed allowlist of anonymous events — screen
-  changes, that a writing session happened (with its word count/minutes),
-  sync/passcode/export toggles — and **never** entry text, titles, search
-  terms, or day keys. The whole layer lives in
-  [`analytics.ts`](src/data/analytics.ts); if an event isn't in its union,
-  it can't be sent.
+- **Usage analytics** — content-free product analytics over
+  [Umami](https://umami.is) (privacy-first, cookieless). Active only when
+  `VITE_UMAMI_SRC` and `VITE_UMAMI_WEBSITE_ID` are set at build time (i.e. in
+  production) — there's no per-user opt-in — and even then no tracker script
+  loads when the browser asks for Do Not Track. What's sent is a small, typed
+  allowlist of anonymous events — screen changes, that a writing session
+  happened (with its word count/minutes), sync/passcode/export actions — and
+  **never** entry text, titles, search terms, or day keys. The whole layer
+  lives in [`analytics.ts`](src/data/analytics.ts); if an event isn't in its
+  union, it can't be sent.
 
 ### Sync (optional)
 
