@@ -7,7 +7,7 @@ import { useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { getStore } from '../data/store';
 import { useStoreState } from '../data/useStore';
 import { track } from '../data/analytics';
-import { isHandheld } from '../sync/device';
+import { isHandheld } from '../data/device';
 import { dateOf } from '../data/dates';
 import { getSyncEngine } from '../sync/engine';
 

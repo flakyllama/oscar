@@ -1,10 +1,10 @@
 // File System Access backend: syncs to a user-owned JSON file (drop it
 // in an iCloud/Dropbox/Drive folder for multi-device). Encryption is the
-// app's optional passcode (store.sealForSync); the file is plaintext
-// when no passcode is set.
+// app's optional passcode, reached through the StorePort seam; the file
+// is plaintext when no passcode is set.
 
-import { getStore } from '../data/store';
-import type { SyncSide } from './merge';
+import type { SyncSide } from './document';
+import type { StorePort } from './port';
 import { type SyncTarget, type SyncPull, idbGet, idbSet } from './target';
 
 export interface FSFileHandle {
@@ -38,34 +38,37 @@ export class FileSyncTarget implements SyncTarget {
   readonly kind = 'file' as const;
   private askedThisGesture = false;
 
-  constructor(private handle: FSFileHandle) {}
+  constructor(
+    private handle: FSFileHandle,
+    private port: StorePort,
+  ) {}
 
   label(): string {
     return this.handle.name;
   }
 
-  static async restore(): Promise<FileSyncTarget | null> {
+  static async restore(port: StorePort): Promise<FileSyncTarget | null> {
     const handle = await idbGet<FSFileHandle>('file');
-    return handle ? new FileSyncTarget(handle) : null;
+    return handle ? new FileSyncTarget(handle, port) : null;
   }
 
-  static async createNew(): Promise<FileSyncTarget | null> {
+  static async createNew(port: StorePort): Promise<FileSyncTarget | null> {
     if (!window.showSaveFilePicker) return null;
     const handle = await window.showSaveFilePicker({
       suggestedName: 'oscar-sync.json',
       types: [{ description: 'Oscar sync file', accept: { 'application/json': ['.json'] } }],
     });
     await idbSet('file', handle);
-    return new FileSyncTarget(handle);
+    return new FileSyncTarget(handle, port);
   }
 
-  static async openExisting(): Promise<FileSyncTarget | null> {
+  static async openExisting(port: StorePort): Promise<FileSyncTarget | null> {
     if (!window.showOpenFilePicker) return null;
     const [handle] = await window.showOpenFilePicker({
       types: [{ description: 'Oscar sync file', accept: { 'application/json': ['.json'] } }],
     });
     await idbSet('file', handle);
-    return new FileSyncTarget(handle);
+    return new FileSyncTarget(handle, port);
   }
 
   async ensureAccess(): Promise<'granted' | 'needs-permission' | 'error'> {
@@ -89,18 +92,17 @@ export class FileSyncTarget implements SyncTarget {
     if (!text.trim()) return { side: null, version: file.lastModified };
     const doc = JSON.parse(text) as SyncDocOnDisk;
     if (doc.app !== 'oscar-sync') throw new Error('That file is not an Oscar sync file.');
-    const side = await getStore().openFromSync<SyncSide>(doc.payload);
+    const side = await this.port.openFromSync<SyncSide>(doc.payload);
     return { side, version: file.lastModified };
   }
 
   async push(side: SyncSide): Promise<number> {
-    const store = getStore();
     const doc: SyncDocOnDisk = {
       app: 'oscar-sync',
       version: 1,
       updatedAt: Date.now(),
-      deviceId: store.deviceId(),
-      payload: await store.sealForSync(side),
+      deviceId: this.port.deviceId(),
+      payload: await this.port.sealForSync(side),
     };
     const writable = await this.handle.createWritable();
     await writable.write(JSON.stringify(doc, null, 2));

@@ -18,9 +18,10 @@ function state(partial: Partial<StoreState> = {}): StoreState {
     locked: false,
     dayMeta: {},
     pendingSync: {},
+    pendingSettingsAt: 0,
     settingsMeta: { updatedAt: 0 },
     syncConflicts: [],
-    syncMeta: { deviceId: '', lastSyncAt: 0, fileName: null },
+    syncMeta: { deviceId: '', lastSyncAt: 0 },
     devices: {},
     ...partial,
   };
