@@ -9,7 +9,7 @@ import { useStoreState } from './data/useStore';
 import { getSessionTracker } from './data/session';
 import { syncAnalytics, track } from './data/analytics';
 import { maybeSeed } from './data/seed';
-import { keyFromOffset, keyShift, dateOf } from './data/dates';
+import { keyFromOffset, keyShift, keyOf, offsetOf, dateOf } from './data/dates';
 import { words, entryKeys } from './data/selectors';
 import type { GlyphEvent } from './components/glyphs';
 import { mkEvent } from './components/glyphs';
@@ -145,79 +145,68 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
   }, [view, offset]);
 
   // ── Navigation ──────────────────────────────────────────────
-  const goView = useCallback(
-    (v: View) => {
+  // The one verb every view change goes through. It owns the shared
+  // bookkeeping — closing overlays, retiring the post-welcome greeting,
+  // the day animation, and the view_changed analytics event (fired only
+  // when the view actually changes) — so no path can skip it.
+  const navigate = useCallback(
+    (v: View, opts: { offset?: number; anim?: string } = {}) => {
       setPaletteOpen(false);
       setCalOpen(false);
       setPostWelcome(false);
-      if (v === 'editor' && view !== 'editor') setDayAnim('db-fade .25s ease-out');
+      if (opts.offset !== undefined) setOffset(opts.offset);
+      if (opts.anim) setDayAnim(opts.anim);
+      else if (v === 'editor' && view !== 'editor') setDayAnim('db-fade .25s ease-out');
       setView(v);
-      track({ name: 'view_changed', view: v });
+      if (v !== view) track({ name: 'view_changed', view: v });
     },
     [view],
   );
 
   const navDay = useCallback(
     (delta: number) => {
-      setOffset((cur) => {
-        if (delta > 0 && cur >= 0) return cur;
-        setPostWelcome(false);
-        flip.current = !flip.current;
-        setDayAnim((delta < 0 ? 'db-in-l-' : 'db-in-r-') + (flip.current ? 'a' : 'b') + ' .28s ease-out');
-        setView('editor');
-        setCalOpen(false);
-        return Math.min(0, cur + delta);
+      if (delta > 0 && offset >= 0) return;
+      flip.current = !flip.current;
+      navigate('editor', {
+        offset: Math.min(0, offset + delta),
+        anim: (delta < 0 ? 'db-in-l-' : 'db-in-r-') + (flip.current ? 'a' : 'b') + ' .28s ease-out',
       });
     },
-    [],
+    [offset, navigate],
   );
 
-  const jumpOffset = useCallback((off: number) => {
-    if (off > 0) return;
-    setPostWelcome(false);
-    setView('editor');
-    setOffset(off);
-    setCalOpen(false);
-    setPaletteOpen(false);
-    setDayAnim('db-fade .25s ease-out');
-  }, []);
-
-  const goDate = useCallback(
-    (d: Date) => {
-      const t = new Date();
-      t.setHours(0, 0, 0, 0);
-      const d2 = new Date(d);
-      d2.setHours(0, 0, 0, 0);
-      jumpOffset(Math.round((d2.getTime() - t.getTime()) / 86400000));
+  const jumpOffset = useCallback(
+    (off: number) => {
+      if (off > 0) return;
+      navigate('editor', { offset: off, anim: 'db-fade .25s ease-out' });
     },
-    [jumpOffset],
+    [navigate],
   );
+
+  const goDate = useCallback((d: Date) => jumpOffset(offsetOf(keyOf(d))), [jumpOffset]);
 
   const goEditor = useCallback(() => {
     // Clicking Write while on a past day snaps to today.
     if (view === 'editor' && offset < 0) jumpOffset(0);
-    else goView('editor');
-  }, [view, offset, jumpOffset, goView]);
+    else navigate('editor');
+  }, [view, offset, jumpOffset, navigate]);
 
   const toggleFocus = useCallback(() => {
     setFocus((f) => !f);
-    setView('editor');
-    setPaletteOpen(false);
-  }, []);
+    navigate('editor');
+  }, [navigate]);
 
   const toggleTheme = useCallback(() => {
     store.setTheme(store.getSnapshot().theme === 'dark' ? 'light' : 'dark');
   }, [store]);
 
   // ── Keyboard model ──────────────────────────────────────────
-  const stateRef = useRef({ view, offset, focus, calOpen, paletteOpen, welcome });
-  stateRef.current = { view, offset, focus, calOpen, paletteOpen, welcome };
-
+  // Reads app state straight from the closure and re-registers when it
+  // changes (navigation is rare; typing doesn't touch these values).
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const st = stateRef.current;
       // The welcome flow owns the keyboard (Enter → Start writing lives there).
-      if (st.welcome) return;
+      if (welcome) return;
       const mod = e.metaKey || e.ctrlKey;
       // ⌘K — the only ⌘ binding.
       if (mod && e.key.toLowerCase() === 'k') {
@@ -227,11 +216,11 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
       }
       // Esc unwinds: palette → calendar → blur input → focus mode → Write.
       if (e.key === 'Escape') {
-        if (st.paletteOpen) {
+        if (paletteOpen) {
           setPaletteOpen(false);
           return;
         }
-        if (st.calOpen) {
+        if (calOpen) {
           setCalOpen(false);
           return;
         }
@@ -240,25 +229,25 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
           ae.blur();
           return;
         }
-        if (st.focus) {
+        if (focus) {
           setFocus(false);
           return;
         }
-        if (st.view !== 'editor') {
-          goView('editor');
+        if (view !== 'editor') {
+          navigate('editor');
           return;
         }
       }
-      if (st.paletteOpen) return;
+      if (paletteOpen) return;
       // ⌥-layer via e.code — safe from browser bindings, works while
       // typing (Alt+letter types special chars on macOS).
       if (e.altKey && !mod && !e.shiftKey) {
         const act: Record<string, () => void> = {
-          KeyW: () => goView('editor'),
-          KeyE: () => goView('home'),
-          KeyS: () => goView('stats'),
-          KeyT: () => goView('settings'),
-          KeyM: () => goView('milestones'),
+          KeyW: () => navigate('editor'),
+          KeyE: () => navigate('home'),
+          KeyS: () => navigate('stats'),
+          KeyT: () => navigate('settings'),
+          KeyM: () => navigate('milestones'),
           ArrowLeft: () => navDay(-7),
           ArrowRight: () => navDay(7),
           KeyF: toggleFocus,
@@ -276,28 +265,28 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
       const typing = tag === 'TEXTAREA' || tag === 'INPUT';
       if (typing) return;
       const k = e.key.toLowerCase();
-      if (st.view === 'editor' && e.key.length === 1 && !mod && !e.altKey) {
+      if (view === 'editor' && e.key.length === 1 && !mod && !e.altKey) {
         // On Write, printable keys always type: refocus the editor and
         // let the character land there.
         taRef.current?.focus();
         return;
       }
-      if (k === 'arrowleft' && st.view === 'editor') navDay(-1);
-      else if (k === 'arrowright' && st.view === 'editor') navDay(1);
+      if (k === 'arrowleft' && view === 'editor') navDay(-1);
+      else if (k === 'arrowright' && view === 'editor') navDay(1);
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
-  }, [goView, navDay, toggleFocus, toggleTheme]);
+  }, [welcome, paletteOpen, calOpen, focus, view, navigate, navDay, toggleFocus, toggleTheme, store]);
 
   // ── Palette actions ─────────────────────────────────────────
   const curKey = keyFromOffset(offset);
   const curText = state.entries[curKey] || '';
 
   const paletteActions: PaletteAction[] = [
-    { cat: 'Go to', label: 'Entries', kbd: '⌥ E', run: () => goView('home') },
-    { cat: 'Go to', label: 'Stats', kbd: '⌥ S', run: () => goView('stats') },
-    { cat: 'Go to', label: 'Milestones', kbd: '⌥ M', run: () => goView('milestones') },
-    { cat: 'Go to', label: 'Settings', kbd: '⌥ T', run: () => goView('settings') },
+    { cat: 'Go to', label: 'Entries', kbd: '⌥ E', run: () => navigate('home') },
+    { cat: 'Go to', label: 'Stats', kbd: '⌥ S', run: () => navigate('stats') },
+    { cat: 'Go to', label: 'Milestones', kbd: '⌥ M', run: () => navigate('milestones') },
+    { cat: 'Go to', label: 'Settings', kbd: '⌥ T', run: () => navigate('settings') },
     { cat: 'Days', label: 'Go to today', kbd: '⌥ W', run: () => jumpOffset(0) },
     { cat: 'Days', label: 'Previous day', kbd: '←', run: () => { setPaletteOpen(false); navDay(-1); } },
     { cat: 'Days', label: 'Next day', kbd: '→', run: () => { setPaletteOpen(false); navDay(1); } },
@@ -564,7 +553,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
             paletteOpen={paletteOpen}
             chromeOpacity={chromeOpacity}
             onGoEditor={goEditor}
-            onGo={goView}
+            onGo={navigate}
             onOpenPalette={() => setPaletteOpen(true)}
           />
         </div>
