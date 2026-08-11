@@ -19,6 +19,7 @@ import {
   forecast,
 } from '../data/selectors';
 import { milestoneGroups, milestoneDays } from '../data/milestones';
+import { GLYPH_COLOR } from '../components/glyphs';
 import { useTooltip } from '../components/Tooltip';
 import { ArrowLeftIcon, ArrowRightIcon, TrendIcon } from '../components/Icons';
 import { ramp, bestMix } from '../lib/colors';
@@ -158,10 +159,11 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
     if (w > 0) hmDays++;
     const lvl = goal > 0 ? Math.min(1, w / goal) : Math.min(1, w / 300);
     const ms = msDays[k];
+    const msColor = ms ? GLYPH_COLOR[ms.glyph] || 'var(--accent)' : null;
     hmCells.push({
-      bg: ms ? ms.color : w === 0 ? 'color-mix(in srgb, var(--fg) 7%, transparent)' : ramp(lvl),
-      glow: ms
-        ? '0 0 8px ' + ms.color
+      bg: msColor ? msColor : w === 0 ? 'color-mix(in srgb, var(--fg) 7%, transparent)' : ramp(lvl),
+      glow: msColor
+        ? '0 0 8px ' + msColor
         : w > 0
           ? '0 0 ' + (2 + Math.round(lvl * 5)) + 'px color-mix(in srgb, var(--accent) ' + Math.round(lvl * 65) + '%, transparent)'
           : 'none',

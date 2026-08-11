@@ -7,7 +7,8 @@ import { getStore } from '../data/store';
 import { useStoreState } from '../data/useStore';
 import { keyFromOffset, dateOf } from '../data/dates';
 import { words, currentStreak } from '../data/selectors';
-import { mkEvent, type GlyphEvent, type GlyphName } from '../components/glyphs';
+import { celebrationsFor } from '../data/milestones';
+import { mkEvent, type GlyphEvent } from '../components/glyphs';
 import { PixelTile, type PixelTileHandle } from '../components/PixelTile';
 import { CalendarPopover } from '../components/CalendarPopover';
 import { useTooltip } from '../components/Tooltip';
@@ -235,61 +236,24 @@ export function Write({
     const text = e.target.value;
     const prevW = words(state.entries[curKey]);
     const newW = words(text);
-    const entries = { ...state.entries, [curKey]: text };
 
-    // Glyph event proposals (higher priority wins; ambient loses to typing).
+    // The achievements module decides what this edit earned; the tile
+    // shows the highest-priority proposal (ambient loses to typing).
     const cur = glyphEvent;
     let evNext: GlyphEvent | null = cur && Date.now() < cur.until && !cur.ambient ? cur : null;
-    const propose = (name: GlyphName, ms: number) => {
+    const celebrations = celebrationsFor({
+      entries: state.entries,
+      dayKey: curKey,
+      newText: text,
+      goal,
+      daySeconds: state.times[curKey] || 0,
+      longSessionSeen: hourglassDay.current === curKey,
+    });
+    for (const { name, ms } of celebrations) {
       const c = mkEvent(name, ms);
       if (!evNext || c.pri >= evNext.pri) evNext = c;
-    };
-
-    if (prevW === 0 && newW > 0) {
-      const h = new Date().getHours();
-      const priorKeys = Object.keys(state.entries)
-        .filter((k) => k < curKey && words(state.entries[k]) > 0)
-        .sort();
-      const prior = priorKeys[priorKeys.length - 1];
-      const gapDays = prior
-        ? Math.round((dateOf(curKey).getTime() - dateOf(prior).getTime()) / 86400000)
-        : 0;
-      const dd = dateOf(curKey);
-      if (dd.getMonth() === 0 && dd.getDate() === 1) propose('confetti ball', 4200);
-      else if (gapDays > 3) propose('welcome back', 4400);
-      else if (h < 3) propose('bat', 2400);
-      else if (h < 9) propose('sun', 2000);
-      else if (h >= 21) propose('moon', 2000);
-      else propose('smiley', 2400);
-      const newCount =
-        priorKeys.length +
-        Object.keys(state.entries).filter((k) => k > curKey && words(state.entries[k]) > 0).length +
-        1;
-      if (newCount % 365 === 0) propose('gem', 4000);
-      else if (newCount % 50 === 0) propose('star', 3600);
-      const first = priorKeys[0];
-      if (first) {
-        const f = dateOf(first);
-        if (f.getMonth() === dd.getMonth() && f.getDate() === dd.getDate() && dd.getFullYear() > f.getFullYear())
-          propose('cake', 4000);
-      }
     }
-    if (goal > 0 && prevW < goal && newW >= goal) {
-      const stk = currentStreak(entries);
-      propose(stk > 0 && stk % 7 === 0 ? 'flame' : (state.times[curKey] || 0) < 600 ? 'bolt' : 'confetti', 3200);
-    }
-    const prevBest = Object.keys(state.entries)
-      .filter((k) => k !== curKey)
-      .reduce((a, k) => Math.max(a, words(state.entries[k])), 0);
-    if (prevBest >= 100 && prevW <= prevBest && newW > prevBest) propose('heart', 3000);
-    const prevTotal = Object.keys(state.entries).reduce((a, k) => a + words(state.entries[k]), 0);
-    const newTotal = prevTotal - prevW + newW;
-    for (const t of [10000, 50000]) if (prevTotal < t && newTotal >= t) propose('medal', 4000);
-    if (prevTotal < 100000 && newTotal >= 100000) propose('trophy', 4400);
-    if ((state.times[curKey] || 0) >= 1800 && hourglassDay.current !== curKey && newW > prevW) {
-      hourglassDay.current = curKey;
-      propose('hourglass', 3600);
-    }
+    if (celebrations.some((c) => c.name === 'hourglass')) hourglassDay.current = curKey;
     setGlyphEvent(evNext);
 
     // Cadence-driven equalizer energy: fast typing kicks harder.
