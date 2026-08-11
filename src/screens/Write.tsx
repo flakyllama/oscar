@@ -4,6 +4,7 @@
 
 import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import { getStore } from '../data/store';
+import { getSessionTracker } from '../data/session';
 import { useStoreState } from '../data/useStore';
 import { keyFromOffset, dateOf } from '../data/dates';
 import { words, currentStreak } from '../data/selectors';
@@ -41,8 +42,7 @@ export interface WriteProps {
   onJump: (offset: number) => void;
   glyphEvent: GlyphEvent | null;
   setGlyphEvent: (ev: GlyphEvent | null) => void;
-  lastType: number;
-  onTyped: (dayKey: string, newWords: number) => void;
+  onTyped: () => void; // typing happened (the shell dismisses its one-time welcome greeting)
   taRef: RefObject<HTMLTextAreaElement>;
   welcomeGreeting?: string; // one-time placeholder shown right after onboarding
 }
@@ -57,7 +57,6 @@ export function Write({
   onJump,
   glyphEvent,
   setGlyphEvent,
-  lastType,
   onTyped,
   taRef,
   welcomeGreeting,
@@ -69,6 +68,7 @@ export function Write({
   const mirrorRef = useRef<HTMLDivElement | null>(null);
   const wrapRef = useRef<HTMLDivElement>(null);
   const [milestones, setMilestones] = useState<{ top: string; label: number; color: string }[]>([]);
+  const [lastType, setLastType] = useState(0); // feeds the tile's equalizer timing
   const [phShown, setPhShown] = useState('');
   const phTarget = useRef('');
   const phTimer = useRef<ReturnType<typeof setInterval>>();
@@ -267,7 +267,9 @@ export function Write({
 
     store.setEntry(curKey, text);
     if (newW > prevW) store.addHourWords(new Date().getHours(), newW - prevW);
-    onTyped(curKey, newW);
+    setLastType(Date.now());
+    getSessionTracker().noteTyping(curKey, newW);
+    onTyped();
     scheduleMeasure(true);
     autosize();
   };

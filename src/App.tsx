@@ -6,6 +6,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import './styles/app.css';
 import { getStore } from './data/store';
 import { useStoreState } from './data/useStore';
+import { getSessionTracker } from './data/session';
 import { syncAnalytics, track } from './data/analytics';
 import { maybeSeed } from './data/seed';
 import { keyFromOffset, keyShift, dateOf } from './data/dates';
@@ -56,7 +57,6 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
   const [calOpen, setCalOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [glyphEvent, setGlyphEvent] = useState<GlyphEvent | null>(null);
-  const [lastType, setLastType] = useState(0);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   // First-run onboarding: shown once, when there's no name/history yet.
@@ -69,9 +69,6 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const flip = useRef(false);
-  const typedKey = useRef<string | null>(null);
-  const lastTypeRef = useRef(0);
-  const session = useRef<{ dayKey: string; start: number; startWords: number; lastWords: number } | null>(null);
   const saveErrTimer = useRef<ReturnType<typeof setTimeout>>();
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -138,54 +135,14 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
     [store],
   );
 
-  // ── Session time accumulation (pauses after 15s idle) ───────
-  const finalizeSession = useCallback(() => {
-    const s = session.current;
-    if (s) {
-      session.current = null;
-      const w = Math.max(0, s.lastWords - s.startWords);
-      if (w > 0) {
-        store.addSession({ dayKey: s.dayKey, start: s.start, end: lastTypeRef.current, words: w });
-        track({ name: 'writing_session', words: w, minutes: Math.round((lastTypeRef.current - s.start) / 60000) });
-      }
-    }
-  }, [store]);
-
+  // ── Writing session: lives in the session module; the shell just
+  // keeps its active-day gate current (seconds accrue only while the
+  // typed day's editor is showing).
   useEffect(() => {
-    const t = setInterval(() => {
-      const now = Date.now();
-      const curKey = keyFromOffset(offset);
-      if (view === 'editor' && lastTypeRef.current && now - lastTypeRef.current < 15000 && typedKey.current === curKey) {
-        store.addSeconds(curKey, 1);
-      } else if (session.current && now - lastTypeRef.current >= 15000) {
-        finalizeSession();
-      }
-    }, 1000);
-    return () => clearInterval(t);
-  }, [view, offset, store, finalizeSession]);
-
-  useEffect(() => {
-    const flush = () => finalizeSession();
-    window.addEventListener('beforeunload', flush);
-    return () => window.removeEventListener('beforeunload', flush);
-  }, [finalizeSession]);
-
-  const onTyped = useCallback(
-    (dayKey: string, newWords: number) => {
-      const now = Date.now();
-      setLastType(now);
-      lastTypeRef.current = now;
-      typedKey.current = dayKey;
-      setPostWelcome(false); // they've started writing — greeting's job is done
-      if (session.current && session.current.dayKey !== dayKey) finalizeSession();
-      if (!session.current) {
-        session.current = { dayKey, start: now, startWords: newWords > 0 ? newWords - 1 : 0, lastWords: newWords };
-      } else {
-        session.current.lastWords = newWords;
-      }
-    },
-    [finalizeSession],
-  );
+    const tracker = getSessionTracker();
+    tracker.start();
+    tracker.setActiveDay(view === 'editor' ? keyFromOffset(offset) : null);
+  }, [view, offset]);
 
   // ── Navigation ──────────────────────────────────────────────
   const goView = useCallback(
@@ -437,8 +394,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
           onJump={jumpOffset}
           glyphEvent={glyphEvent}
           setGlyphEvent={setGlyphEvent}
-          lastType={lastType}
-          onTyped={onTyped}
+          onTyped={() => setPostWelcome(false)}
           taRef={taRef}
           welcomeGreeting={welcomeGreeting}
         />
