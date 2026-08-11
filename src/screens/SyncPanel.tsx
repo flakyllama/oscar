@@ -125,6 +125,16 @@ export function SyncPanel() {
     }
   };
 
+  // One path for "connect with a pasted key" — the Enter key and the
+  // Connect button share it, so sync_enabled can't fire twice.
+  const connectWithKey = () =>
+    run(async () => {
+      await engine.connectCloudWithKey(keyInput.trim(), endpoint.trim());
+      setKeyInput('');
+      setEnteringKey(false);
+      track({ name: 'sync_enabled', backend: 'cloud' });
+    });
+
   const copyKey = (k: string) => {
     try {
       navigator.clipboard.writeText(k);
@@ -270,12 +280,7 @@ export function SyncPanel() {
             onChange={(e) => setKeyInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && keyInput.trim() && !(needEndpoint && !endpoint.trim())) {
-                run(async () => {
-                  await engine.connectCloudWithKey(keyInput.trim(), endpoint.trim());
-                  setKeyInput('');
-                  setEnteringKey(false);
-                  track({ name: 'sync_enabled', backend: 'cloud' });
-                });
+                connectWithKey();
               }
             }}
             placeholder="oscar1-…"
@@ -284,14 +289,7 @@ export function SyncPanel() {
           <button
             style={primary}
             disabled={busy || !keyInput.trim() || (needEndpoint && !endpoint.trim())}
-            onClick={() =>
-              run(async () => {
-                await engine.connectCloudWithKey(keyInput.trim(), endpoint.trim());
-                setKeyInput('');
-                setEnteringKey(false);
-                track({ name: 'sync_enabled', backend: 'cloud' });
-              })
-            }
+            onClick={connectWithKey}
           >
             Connect
           </button>
