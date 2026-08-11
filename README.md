@@ -89,7 +89,7 @@ Plain React with a small hand-rolled store; no state library, no router
 
 ```
 src/
-├── App.tsx              View router, keyboard model, session tracking, footer
+├── App.tsx              View router (one navigate() verb), keyboard model, footer
 ├── components/
 │   ├── PixelTile.tsx    The 8×8 tile: equalizer + glyph stage
 │   ├── glyphs.ts        Glyph bitmaps, colors, priorities, animation frames
@@ -99,15 +99,17 @@ src/
 ├── screens/            Write, Entries, Stats, Milestones, Settings, TileDemo
 ├── data/
 │   ├── store.ts         Typed store over localStorage (subscribe/snapshot)
-│   ├── dates.ts         Local-date day keys + DST-safe arithmetic
+│   ├── dates.ts         Local-date day keys, DST-safe arithmetic, calendar names
 │   ├── selectors.ts     Word counts, streaks, totals, histograms, forecast
-│   ├── milestones.ts    The 20 milestone definitions + earned dates
+│   ├── milestones.ts    Achievements: the 20 milestones + celebrations, one threshold table
+│   ├── session.ts       The writing-session lifecycle (idle rule, day rotation)
 │   ├── crypto.ts        WebCrypto AES-GCM passcode gate
-│   ├── backup.ts        JSON export/import with merge-on-import
-│   └── useStore.ts      useSyncExternalStore binding
+│   └── useStore.ts      useSyncExternalStore binding (backup.ts: JSON export/import)
 ├── sync/
+│   ├── document.ts      The sync-document types (a leaf both layers import)
 │   ├── merge.ts         Pure LWW-per-day merge with tombstones
 │   ├── identity.ts      Master key → HKDF account/auth/enc; sync-key codec
+│   ├── port.ts          StorePort — the engine's store-facing seam
 │   ├── target.ts        SyncTarget interface + IndexedDB persistence
 │   ├── fileTarget.ts    File System Access backend
 │   ├── cloudTarget.ts   Zero-knowledge cloud backend
@@ -200,12 +202,16 @@ npm test          # Vitest unit tests (node env)
 npm run test:e2e  # Playwright E2E (boots the dev server itself)
 ```
 
-**93 unit tests** cover the load-bearing logic: local-date/DST day keys,
-streak and word-count selectors, backup merge, the passcode lifecycle
-(set / change / unlock, re-keying at rest), the trash lifecycle (soft
-delete / restore / purge / TTL expiry), the sync merge (LWW + tombstones
-+ conflict detection), the zero-knowledge identity codec, and the sync
-API request handler.
+**131 unit tests** cover the load-bearing logic: local-date/DST day keys,
+streak and word-count selectors, milestone thresholds and celebrations,
+the writing-session lifecycle (idle rule, day rotation), backup merge,
+the passcode lifecycle (set / change / unlock, re-keying at rest), the
+trash lifecycle (soft delete / restore / purge / TTL expiry), the sync
+merge (LWW + tombstones + conflict detection), the sync engine's full
+transaction (pull → merge → apply → push, pending-queue ordering,
+version-conflict retries) against an in-memory target, the analytics
+consent gate, the zero-knowledge identity codec, and the sync API
+request handler.
 
 **Playwright** ([`e2e/`](e2e/)) drives the real UI in Chromium: writing
 persists across a reload, the ⌥-layer shortcuts and toolbar move between

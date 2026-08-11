@@ -13,8 +13,8 @@ import {
   encryptJson,
   decryptJson,
 } from './crypto';
-import type { SyncConflict, SyncDayRecord, SyncDeviceRecord, SyncSettings } from '../sync/merge';
-import { describeDevice } from '../sync/device';
+import type { SyncConflict, SyncDayRecord, SyncDeviceRecord, SyncSettings } from '../sync/document';
+import { describeDevice } from './device';
 
 export const SCHEMA_VERSION = 2;
 
@@ -42,7 +42,6 @@ export interface DayMeta {
 export interface SyncFileMeta {
   deviceId: string;
   lastSyncAt: number;
-  fileName: string | null;
 }
 
 export interface StoreState {
@@ -60,6 +59,7 @@ export interface StoreState {
   locked: boolean; // lock enabled and not yet unlocked this session
   dayMeta: Record<DayKey, DayMeta>;
   pendingSync: Record<DayKey, number>; // dayKey → updatedAt awaiting sync
+  pendingSettingsAt: number; // when goal/name last changed without a push yet (0 = none)
   settingsMeta: { updatedAt: number };
   syncConflicts: SyncConflict[];
   syncMeta: SyncFileMeta;
@@ -86,6 +86,7 @@ export const KEYS = {
   schema: 'daybook.schemaVersion',
   dayMeta: 'daybook.dayMeta',
   pendingSync: 'daybook.syncPending',
+  pendingSettings: 'daybook.syncPendingSettings',
   settingsMeta: 'daybook.settingsMeta',
   syncConflicts: 'daybook.syncConflicts',
   syncMeta: 'daybook.syncMeta',
@@ -161,12 +162,12 @@ export class Store {
       locked,
       dayMeta: readJson<Record<DayKey, DayMeta>>(this.storage, KEYS.dayMeta, {}),
       pendingSync: readJson<Record<DayKey, number>>(this.storage, KEYS.pendingSync, {}),
+      pendingSettingsAt: readJson<number>(this.storage, KEYS.pendingSettings, 0),
       settingsMeta: readJson<{ updatedAt: number }>(this.storage, KEYS.settingsMeta, { updatedAt: 0 }),
       syncConflicts: readJson<SyncConflict[]>(this.storage, KEYS.syncConflicts, []),
       syncMeta: readJson<SyncFileMeta>(this.storage, KEYS.syncMeta, {
         deviceId: '',
         lastSyncAt: 0,
-        fileName: null,
       }),
       devices: readJson<Record<string, SyncDeviceRecord>>(this.storage, KEYS.devices, {}),
     };
@@ -297,10 +298,14 @@ export class Store {
     return { dayMeta, pendingSync };
   }
 
-  private touchSettings(): { updatedAt: number } {
-    const settingsMeta = { updatedAt: Date.now() };
+  // Stamp a settings change and enqueue it for sync — goal/name changes
+  // must push on their own, not just piggyback on the next entry edit.
+  private touchSettings(): Pick<StoreState, 'settingsMeta' | 'pendingSettingsAt'> {
+    const now = Date.now();
+    const settingsMeta = { updatedAt: now };
     this.persist(KEYS.settingsMeta, settingsMeta);
-    return settingsMeta;
+    this.persist(KEYS.pendingSettings, now);
+    return { settingsMeta, pendingSettingsAt: now };
   }
 
   setEntry(key: DayKey, text: string) {
@@ -321,7 +326,7 @@ export class Store {
   }
 
   setGoal(goal: number) {
-    this.setState({ ...this.state, goal, settingsMeta: this.touchSettings() });
+    this.setState({ ...this.state, goal, ...this.touchSettings() });
     this.persist(KEYS.goal, String(goal));
   }
 
@@ -332,7 +337,7 @@ export class Store {
   }
 
   setName(name: string) {
-    this.setState({ ...this.state, name, settingsMeta: this.touchSettings() });
+    this.setState({ ...this.state, name, ...this.touchSettings() });
     this.persist(KEYS.name, name);
   }
 
@@ -548,15 +553,25 @@ export class Store {
     }
   }
 
+  // Anything queued for the next push? (day edits or a settings change)
+  hasPendingSync(): boolean {
+    return Object.keys(this.state.pendingSync).length > 0 || this.state.pendingSettingsAt > 0;
+  }
+
   // Drop pending entries that were captured by a sync snapshot taken
-  // at `snapshotAt` — edits made since then stay queued.
+  // at `snapshotAt` — edits made since then stay queued. An edit stamped
+  // in the *same* millisecond as the snapshot is ambiguous (it may have
+  // landed just after the snapshot was read), so it stays queued and is
+  // re-pushed once — safe because the merge is idempotent.
   clearPending(snapshotAt: number) {
     const pendingSync: Record<DayKey, number> = {};
     Object.keys(this.state.pendingSync).forEach((k) => {
-      if (this.state.pendingSync[k] > snapshotAt) pendingSync[k] = this.state.pendingSync[k];
+      if (this.state.pendingSync[k] >= snapshotAt) pendingSync[k] = this.state.pendingSync[k];
     });
-    this.setState({ ...this.state, pendingSync });
+    const pendingSettingsAt = this.state.pendingSettingsAt >= snapshotAt ? this.state.pendingSettingsAt : 0;
+    this.setState({ ...this.state, pendingSync, pendingSettingsAt });
     this.persist(KEYS.pendingSync, pendingSync);
+    this.persist(KEYS.pendingSettings, pendingSettingsAt);
   }
 
   addSyncConflicts(conflicts: SyncConflict[]) {

@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useStoreState } from '../data/useStore';
-import { keyFromOffset, dateOf, keyOf } from '../data/dates';
+import { keyFromOffset, dateOf, keyOf, offsetOf, MONTHS, DAY_NAMES } from '../data/dates';
 import {
   words,
   entryKeys,
@@ -19,12 +19,13 @@ import {
   forecast,
 } from '../data/selectors';
 import { milestoneGroups, milestoneDays } from '../data/milestones';
+import { GLYPH_COLOR } from '../components/glyphs';
 import { useTooltip } from '../components/Tooltip';
 import { ArrowLeftIcon, ArrowRightIcon, TrendIcon } from '../components/Icons';
 import { ramp, bestMix } from '../lib/colors';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEKDAYS_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+// "Sundays", "Mondays", … for the weekday-bars captions.
+const WEEKDAYS_FULL = DAY_NAMES.map((d) => d + 's');
 
 const cardStyle = {
   background: 'var(--surface)',
@@ -132,8 +133,6 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
   const msDays = milestoneDays(milestoneGroups(entries, times, hours, goal));
   const nowYear = new Date().getFullYear();
   const hmYear = hmYearSel ?? nowYear;
-  const today0 = new Date();
-  today0.setHours(0, 0, 0, 0);
   interface HmCell {
     bg: string;
     glow: string;
@@ -144,10 +143,11 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
   const hmMonths: { label: string; left: string }[] = [];
   const jan1 = new Date(hmYear, 0, 1);
   const dec31 = new Date(hmYear, 11, 31);
+  const hmToday = new Date(); // hoisted: 365 cells shouldn't each re-derive today
   for (let i = 0; i < jan1.getDay(); i++) hmCells.push({ bg: 'transparent', glow: 'none', off: null, tip: null });
   let hmDays = 0;
   for (let d = new Date(jan1); d <= dec31; d.setDate(d.getDate() + 1)) {
-    const off = Math.round((d.getTime() - today0.getTime()) / 86400000);
+    const off = offsetOf(keyOf(d), hmToday);
     if (d.getDate() === 1) hmMonths.push({ label: MONTHS[d.getMonth()], left: Math.floor(hmCells.length / 7) * 10 + 'px' });
     if (off > 0) {
       hmCells.push({ bg: 'color-mix(in srgb, var(--fg) 4%, transparent)', glow: 'none', off: null, tip: null });
@@ -158,10 +158,11 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
     if (w > 0) hmDays++;
     const lvl = goal > 0 ? Math.min(1, w / goal) : Math.min(1, w / 300);
     const ms = msDays[k];
+    const msColor = ms ? GLYPH_COLOR[ms.glyph] || 'var(--accent)' : null;
     hmCells.push({
-      bg: ms ? ms.color : w === 0 ? 'color-mix(in srgb, var(--fg) 7%, transparent)' : ramp(lvl),
-      glow: ms
-        ? '0 0 8px ' + ms.color
+      bg: msColor ? msColor : w === 0 ? 'color-mix(in srgb, var(--fg) 7%, transparent)' : ramp(lvl),
+      glow: msColor
+        ? '0 0 8px ' + msColor
         : w > 0
           ? '0 0 ' + (2 + Math.round(lvl * 5)) + 'px color-mix(in srgb, var(--accent) ' + Math.round(lvl * 65) + '%, transparent)'
           : 'none',

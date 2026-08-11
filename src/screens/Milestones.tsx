@@ -2,10 +2,9 @@
 
 import { useStoreState } from '../data/useStore';
 import { milestoneGroups } from '../data/milestones';
+import { MONTHS } from '../data/dates';
 import { GLYPHS, GLYPH_COLOR } from '../components/glyphs';
 import { useTooltip } from '../components/Tooltip';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function fmtDate(d: Date | null): string | null {
   if (!d) return null;

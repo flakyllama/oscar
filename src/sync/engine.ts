@@ -10,8 +10,9 @@
 // - a push that races another device (version conflict) re-pulls and
 //   re-merges, so no write is silently lost
 
-import { getStore } from '../data/store';
-import { mergeSync, type SyncSide, type SyncSettings } from './merge';
+import { type StorePort, defaultStorePort } from './port';
+import { mergeSync } from './merge';
+import type { SyncSide, SyncSettings } from './document';
 import { type SyncTarget, VersionConflictError } from './target';
 import { FileSyncTarget, fileSyncSupported } from './fileTarget';
 import { CloudSyncTarget, DEFAULT_ENDPOINT } from './cloudTarget';
@@ -37,6 +38,16 @@ const emptySettings = (local: SyncSide): SyncSettings => ({
 });
 
 export class SyncEngine {
+  // Both seams are constructor-injected: the store the engine reads and
+  // writes, and (tests only) a pre-built target to adopt on start()
+  // instead of restoring a persisted one. Nothing in the connect/*
+  // surface can hand the engine a target that wouldn't survive a
+  // reload.
+  constructor(
+    private port: StorePort = defaultStorePort(),
+    private initialTarget: SyncTarget | null = null,
+  ) {}
+
   private target: SyncTarget | null = null;
   private status: SyncStatus = {
     fileSupported: fileSyncSupported(),
@@ -51,6 +62,7 @@ export class SyncEngine {
   private lastSeenToken: string | number = 0;
   private pushTimer: ReturnType<typeof setTimeout> | undefined;
   private pollTimer: ReturnType<typeof setInterval> | undefined;
+  private unsubscribe: (() => void) | undefined;
   private started = false;
 
   subscribe = (fn: () => void) => {
@@ -76,16 +88,16 @@ export class SyncEngine {
     this.started = true;
     // Restore whichever backend was connected (cloud takes precedence).
     try {
-      const restored = (await CloudSyncTarget.restore()) || (await FileSyncTarget.restore());
-      if (restored) await this.adopt(restored, false);
+      const restored =
+        this.initialTarget ?? (await CloudSyncTarget.restore()) ?? (await FileSyncTarget.restore(this.port));
+      if (restored) await this.adopt(restored, !!this.initialTarget);
     } catch {
       // Nothing restorable — stay disconnected.
     }
 
-    const store = getStore();
-    store.subscribe(() => {
+    this.unsubscribe = this.port.subscribe(() => {
       if (!this.target || this.status.needsPermission) return;
-      if (Object.keys(store.getSnapshot().pendingSync).length === 0) return;
+      if (!this.port.hasPending()) return;
       clearTimeout(this.pushTimer);
       this.pushTimer = setTimeout(() => this.syncNow(), PUSH_DEBOUNCE_MS);
     });
@@ -101,16 +113,19 @@ export class SyncEngine {
   stop() {
     clearInterval(this.pollTimer);
     clearTimeout(this.pushTimer);
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    this.started = false;
   }
 
   // ── Connect / disconnect ────────────────────────────────────
 
   async connectFileNew() {
-    const t = await FileSyncTarget.createNew();
+    const t = await FileSyncTarget.createNew(this.port);
     if (t) await this.adopt(t, true);
   }
   async connectFileExisting() {
-    const t = await FileSyncTarget.openExisting();
+    const t = await FileSyncTarget.openExisting(this.port);
     if (t) await this.adopt(t, true);
   }
   async connectCloudNew(endpoint: string) {
@@ -128,7 +143,7 @@ export class SyncEngine {
   private async adopt(target: SyncTarget, resetCursor: boolean) {
     this.target = target;
     this.lastSeenToken = 0;
-    if (resetCursor) getStore().setSyncMeta({ lastSyncAt: 0 });
+    if (resetCursor) this.port.setLastSyncAt(0);
     this.setStatus({
       kind: target.kind,
       label: target.label(),
@@ -142,7 +157,7 @@ export class SyncEngine {
   async disconnect() {
     if (this.target) await this.target.teardown();
     this.target = null;
-    getStore().setSyncMeta({ lastSyncAt: 0, fileName: null });
+    this.port.setLastSyncAt(0);
     this.setStatus({ kind: null, label: '', connected: false, needsPermission: false, error: null });
   }
 
@@ -162,8 +177,7 @@ export class SyncEngine {
     if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return;
     try {
       const token = await this.target.remoteToken();
-      const pending = Object.keys(getStore().getSnapshot().pendingSync).length > 0;
-      if (token !== this.lastSeenToken || pending) await this.syncNow();
+      if (token !== this.lastSeenToken || this.port.hasPending()) await this.syncNow();
     } catch {
       // Offline / transient — the queue keeps everything for next time.
     }
@@ -172,8 +186,7 @@ export class SyncEngine {
   // ── The sync loop ───────────────────────────────────────────
 
   async syncNow() {
-    const store = getStore();
-    if (!this.target || this.status.syncing || store.getSnapshot().locked) return;
+    if (!this.target || this.status.syncing || this.port.isLocked()) return;
 
     const access = await this.target.ensureAccess();
     if (access !== 'granted') {
@@ -188,23 +201,23 @@ export class SyncEngine {
       // our pull and push — re-pull and re-merge.
       for (;;) {
         const snapshotAt = Date.now();
-        const local = store.syncSnapshot();
+        const local = this.port.syncSnapshot();
         const pulled = await this.target.pull();
         const remote = pulled.side ?? { days: {}, hours: {}, settings: emptySettings(local), devices: {} };
 
-        const merged = mergeSync(local, remote, store.getSnapshot().syncMeta.lastSyncAt, snapshotAt);
+        const merged = mergeSync(local, remote, this.port.lastSyncAt(), snapshotAt);
 
         if (merged.changedLocally.length || merged.hoursChangedLocally || merged.settingsChangedLocally) {
           const subset: typeof merged.days = {};
           merged.changedLocally.forEach((k) => (subset[k] = merged.days[k]));
-          store.applyRemote(
+          this.port.applyRemote(
             subset,
             merged.hoursChangedLocally ? merged.hours : null,
             merged.settingsChangedLocally ? (merged.settings as SyncSettings) : null,
           );
         }
-        store.addSyncConflicts(merged.conflicts);
-        store.setDevices(merged.devices);
+        this.port.addSyncConflicts(merged.conflicts);
+        this.port.setDevices(merged.devices);
 
         const mergedSide: SyncSide = {
           days: merged.days,
@@ -227,8 +240,8 @@ export class SyncEngine {
         }
 
         this.lastSeenToken = token;
-        store.clearPending(snapshotAt);
-        store.setSyncMeta({ lastSyncAt: snapshotAt });
+        this.port.clearPending(snapshotAt);
+        this.port.setLastSyncAt(snapshotAt);
         this.setStatus({ syncing: false });
         return;
       }

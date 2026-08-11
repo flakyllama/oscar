@@ -13,11 +13,15 @@
 //   3. the browser isn't asking for Do Not Track.
 // Umami's own script auto-tracks a single anonymous pageview per load
 // (the "visit"); these custom events add feature-usage on top.
+//
+// The runtime sits behind a transport seam: the Umami script adapter in
+// production, a recording adapter in analytics.test.ts — which is what
+// makes the consent gate and the queue-then-flush path testable.
 
 import type { View } from '../types';
 
 // The allowlist. Every trackable event and its exact, content-free shape.
-type AnalyticsEvent =
+export type AnalyticsEvent =
   | { name: 'view_changed'; view: View }
   | { name: 'writing_session'; words: number; minutes: number }
   | { name: 'day_cleared' }
@@ -28,7 +32,7 @@ type AnalyticsEvent =
   | { name: 'export_used' } // JSON backup download
   | { name: 'import_used' };
 
-type EventData = Record<string, string | number | boolean>;
+export type EventData = Record<string, string | number | boolean>;
 
 interface Umami {
   track: (event: string, data?: EventData) => void;
@@ -56,46 +60,91 @@ function doNotTrack(): boolean {
   return dnt === '1' || dnt === 'yes';
 }
 
-let consented = false;
-let injected = false;
-let queue: AnalyticsEvent[] = [];
+// ── The transport seam ──────────────────────────────────────────
 
-// Called by App on mount and whenever the setting changes. Injects the
-// tracker the first time it's enabled; a later opt-out just stops events
-// (the already-loaded script can't be unloaded, but it goes silent).
+export interface AnalyticsTransport {
+  // Load the tracker; call onReady once events can be delivered.
+  // Returns false if injection couldn't happen and should be retried.
+  inject(onReady: () => void): boolean | void;
+  ready(): boolean;
+  send(name: string, data: EventData): void;
+}
+
+// Production adapter: the Umami script tag.
+function umamiTransport(): AnalyticsTransport {
+  return {
+    // Returns false when there's no document to inject into, so the
+    // caller can try again once one exists.
+    inject(onReady) {
+      if (typeof document === 'undefined') return false;
+      const s = document.createElement('script');
+      s.async = true;
+      s.src = SRC;
+      s.setAttribute('data-website-id', WEBSITE_ID);
+      s.setAttribute('data-do-not-track', 'true'); // belt-and-suspenders
+      s.addEventListener('load', onReady);
+      document.head.appendChild(s);
+      return true;
+    },
+    ready: () => typeof window !== 'undefined' && !!window.umami,
+    send: (name, data) => window.umami?.track(name, data),
+  };
+}
+
+// ── The gate + queue, independent of transport ──────────────────
+
+export interface AnalyticsDeps {
+  configured(): boolean;
+  doNotTrack(): boolean;
+  transport: AnalyticsTransport;
+}
+
+export function createAnalytics(deps: AnalyticsDeps) {
+  let consented = false;
+  let injected = false;
+  const queue: AnalyticsEvent[] = [];
+
+  const send = (event: AnalyticsEvent) => {
+    const { name, ...data } = event;
+    deps.transport.send(name, data as EventData);
+  };
+  // Events fired before the tracker finished loading are queued and
+  // flushed on its load, so the first interaction after opt-in isn't
+  // dropped.
+  const flush = () => {
+    if (!deps.transport.ready()) return;
+    while (queue.length) send(queue.shift()!);
+  };
+
+  return {
+    // Called by App on mount and whenever the setting changes. Injects the
+    // tracker the first time it's enabled; a later opt-out just stops events
+    // (the already-loaded script can't be unloaded, but it goes silent).
+    syncAnalytics(enabled: boolean): void {
+      consented = enabled && deps.configured() && !deps.doNotTrack();
+      // Only latch when the injection actually happened — a no-op
+      // injection (no document yet) must stay retryable.
+      if (consented && !injected) injected = deps.transport.inject(flush) !== false;
+    },
+    track(event: AnalyticsEvent): void {
+      if (!consented) return;
+      if (deps.transport.ready()) send(event);
+      else queue.push(event);
+    },
+  };
+}
+
+// The app-wide instance, wired to the real gate and the Umami adapter.
+const analytics = createAnalytics({
+  configured: analyticsConfigured,
+  doNotTrack,
+  transport: umamiTransport(),
+});
+
 export function syncAnalytics(enabled: boolean): void {
-  consented = enabled && analyticsConfigured() && !doNotTrack();
-  if (consented && !injected) inject();
-}
-
-function inject(): void {
-  if (injected || typeof document === 'undefined') return;
-  injected = true;
-  const s = document.createElement('script');
-  s.async = true;
-  s.src = SRC;
-  s.setAttribute('data-website-id', WEBSITE_ID);
-  s.setAttribute('data-do-not-track', 'true'); // belt-and-suspenders
-  s.addEventListener('load', flush);
-  document.head.appendChild(s);
-}
-
-function send(event: AnalyticsEvent): void {
-  const { name, ...data } = event;
-  window.umami?.track(name, data as EventData);
-}
-
-function flush(): void {
-  if (!window.umami) return;
-  const pending = queue;
-  queue = [];
-  pending.forEach(send);
+  analytics.syncAnalytics(enabled);
 }
 
 export function track(event: AnalyticsEvent): void {
-  if (!consented || typeof window === 'undefined') return;
-  // Events fired before the tracker finished loading are queued and flushed
-  // on its `load`, so the first interaction after opt-in isn't dropped.
-  if (window.umami) send(event);
-  else queue.push(event);
+  analytics.track(event);
 }

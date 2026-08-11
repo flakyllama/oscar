@@ -7,11 +7,9 @@ import { useState, useSyncExternalStore, type CSSProperties } from 'react';
 import { getStore } from '../data/store';
 import { useStoreState } from '../data/useStore';
 import { track } from '../data/analytics';
-import { isHandheld } from '../sync/device';
-import { dateOf } from '../data/dates';
+import { isHandheld } from '../data/device';
+import { dateOf, MONTHS } from '../data/dates';
 import { getSyncEngine } from '../sync/engine';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const card: CSSProperties = {
   display: 'flex',
@@ -108,7 +106,15 @@ export function SyncPanel() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const pending = Object.keys(state.pendingSync).length;
+  // Day edits, plus the settings change the engine also counts as
+  // pending — read from the same predicate so the caption can't say
+  // "up to date" while a push is queued.
+  const pendingDays = Object.keys(state.pendingSync).length;
+  const pendingLabel = pendingDays
+    ? `${pendingDays} pending`
+    : state.pendingSettingsAt > 0
+      ? 'settings pending'
+      : '';
   const lastSyncAt = state.syncMeta.lastSyncAt;
   const needEndpoint = engine.cloudEndpointDefault() === '';
   const selfId = state.syncMeta.deviceId;
@@ -127,6 +133,16 @@ export function SyncPanel() {
     }
   };
 
+  // One path for "connect with a pasted key" — the Enter key and the
+  // Connect button share it, so sync_enabled can't fire twice.
+  const connectWithKey = () =>
+    run(async () => {
+      await engine.connectCloudWithKey(keyInput.trim(), endpoint.trim());
+      setKeyInput('');
+      setEnteringKey(false);
+      track({ name: 'sync_enabled', backend: 'cloud' });
+    });
+
   const copyKey = (k: string) => {
     try {
       navigator.clipboard.writeText(k);
@@ -143,7 +159,7 @@ export function SyncPanel() {
       ? `${sync.label} — permission needed after reload`
       : (sync.kind === 'cloud' ? 'Cloud' : sync.label) +
         (lastSyncAt ? ` · synced ${agoLabel(lastSyncAt)}` : '') +
-        (pending ? ` · ${pending} pending` : sync.syncing ? ' · syncing…' : '');
+        (pendingLabel ? ` · ${pendingLabel}` : sync.syncing ? ' · syncing…' : '');
 
   const choosing = !sync.connected && !enteringKey;
   const devices = Object.values(state.devices).sort((a, b) => {
@@ -272,12 +288,7 @@ export function SyncPanel() {
             onChange={(e) => setKeyInput(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === 'Enter' && keyInput.trim() && !(needEndpoint && !endpoint.trim())) {
-                run(async () => {
-                  await engine.connectCloudWithKey(keyInput.trim(), endpoint.trim());
-                  setKeyInput('');
-                  setEnteringKey(false);
-                  track({ name: 'sync_enabled', backend: 'cloud' });
-                });
+                connectWithKey();
               }
             }}
             placeholder="oscar1-…"
@@ -286,14 +297,7 @@ export function SyncPanel() {
           <button
             style={primary}
             disabled={busy || !keyInput.trim() || (needEndpoint && !endpoint.trim())}
-            onClick={() =>
-              run(async () => {
-                await engine.connectCloudWithKey(keyInput.trim(), endpoint.trim());
-                setKeyInput('');
-                setEnteringKey(false);
-                track({ name: 'sync_enabled', backend: 'cloud' });
-              })
-            }
+            onClick={connectWithKey}
           >
             Connect
           </button>

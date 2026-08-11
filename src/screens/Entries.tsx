@@ -2,15 +2,9 @@
 
 import { useState } from 'react';
 import { useStoreState } from '../data/useStore';
-import { dateOf, offsetOf } from '../data/dates';
+import { dateOf, offsetOf, MONTHS_FULL, DAY_NAMES_SHORT } from '../data/dates';
 import { words, entryKeys, totalWords } from '../data/selectors';
 import { SearchIcon, WordsIcon, ClockIcon, ArrowRightIcon } from '../components/Icons';
-
-const MONTHS_FULL = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
-const DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 export function Entries({ onOpen }: { onOpen: (offset: number) => void }) {
   const state = useStoreState();
@@ -51,7 +45,7 @@ export function Entries({ onOpen }: { onOpen: (offset: number) => void }) {
     g.rows.push({
       key: k,
       off: offsetOf(k),
-      date: DOW[dd.getDay()] + ' ' + dd.getDate(),
+      date: DAY_NAMES_SHORT[dd.getDay()] + ' ' + dd.getDate(),
       preview: state.entries[k].split('\n')[0],
       words: w,
       time: tsec >= 60 ? Math.round(tsec / 60) + 'm' : tsec > 0 ? '<1m' : '',

@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { keyOf, todayKey, keyFromOffset, dateOf, keyShift, daysBetween, offsetOf } from './dates';
+import {
+  keyOf,
+  todayKey,
+  keyFromOffset,
+  dateOf,
+  keyShift,
+  daysBetween,
+  offsetOf,
+  MONTHS,
+  MONTHS_FULL,
+  DAY_NAMES,
+  DAY_NAMES_SHORT,
+} from './dates';
 
 describe('day keys are local-date based', () => {
   it('uses the local calendar date, not UTC (the prototype bug)', () => {
@@ -75,5 +87,14 @@ describe('daysBetween / offsetOf / keyShift', () => {
   it('dateOf round-trips with keyOf', () => {
     expect(keyOf(dateOf('2026-07-16'))).toBe('2026-07-16');
     expect(todayKey(new Date(2026, 6, 16, 23, 59))).toBe('2026-07-16');
+  });
+});
+
+describe('calendar vocabulary', () => {
+  it('keeps the short and full name tables aligned', () => {
+    expect(MONTHS).toHaveLength(12);
+    expect(DAY_NAMES).toHaveLength(7);
+    MONTHS.forEach((m, i) => expect(MONTHS_FULL[i].startsWith(m.slice(0, 3))).toBe(true));
+    DAY_NAMES_SHORT.forEach((d, i) => expect(DAY_NAMES[i].startsWith(d)).toBe(true));
   });
 });

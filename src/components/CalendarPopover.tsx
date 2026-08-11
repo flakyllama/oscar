@@ -3,7 +3,7 @@
 // mode with the same footprint.
 
 import { useEffect, useRef, useState } from 'react';
-import { keyFromOffset } from '../data/dates';
+import { keyFromOffset, keyOf, offsetOf, MONTHS_FULL } from '../data/dates';
 import { words, type Entries } from '../data/selectors';
 import { ChevronLeftIcon, ChevronRightIcon } from './Icons';
 import { useFocusTrap } from './useFocusTrap';
@@ -13,11 +13,6 @@ export interface CalendarPopoverProps {
   entries: Entries;
   onJump: (offset: number) => void;
 }
-
-const MONTHS_FULL = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 export function CalendarPopover({ offset, entries, onJump }: CalendarPopoverProps) {
   // Opens on the viewed day's month.
@@ -74,7 +69,7 @@ export function CalendarPopover({ offset, entries, onJump }: CalendarPopoverProp
   }
   for (let day = 1; day <= daysInMonth; day++) {
     const d = new Date(vm.getFullYear(), vm.getMonth(), day);
-    const off = Math.round((d.getTime() - t0.getTime()) / 86400000);
+    const off = offsetOf(keyOf(d), t0);
     const future = off > 0;
     const w = future ? 0 : words(entries[keyFromOffset(off)]);
     cells.push({

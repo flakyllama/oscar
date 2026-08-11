@@ -4,43 +4,9 @@
 // resolve silently.
 
 import type { DayKey } from '../data/dates';
+import type { SyncDayRecord, SyncSettings, SyncDeviceRecord, SyncSide, SyncConflict } from './document';
 
-export interface SyncDayRecord {
-  text: string;
-  time: number; // accumulated seconds for the day
-  updatedAt: number; // epoch ms of the last edit
-  deletedAt?: number; // tombstone: the day was cleared at this time
-}
-
-export interface SyncSettings {
-  goal: number;
-  name: string;
-  updatedAt: number;
-}
-
-// A device in the synced "connected devices" registry. Keyed by a stable
-// per-device id; the freshest record (highest lastSyncAt) wins on merge.
-export interface SyncDeviceRecord {
-  id: string;
-  platform: string; // e.g. "Mac", "iPhone" (from the UA)
-  browser: string; // e.g. "Safari"
-  addedAt: number; // first time this device synced
-  lastSyncAt: number; // last time it synced (bucketed, so merges stay quiet)
-}
-
-export interface SyncSide {
-  days: Record<DayKey, SyncDayRecord>;
-  hours: Record<string, number>;
-  settings: SyncSettings;
-  devices?: Record<string, SyncDeviceRecord>;
-}
-
-export interface SyncConflict {
-  dayKey: DayKey;
-  kept: 'local' | 'remote';
-  loserText: string;
-  at: number; // when the conflict was detected
-}
+export type { SyncDayRecord, SyncSettings, SyncDeviceRecord, SyncSide, SyncConflict } from './document';
 
 export interface MergeResult {
   // The fully merged state — written to the file AND the target for
