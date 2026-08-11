@@ -9,7 +9,7 @@ import { useStoreState } from './data/useStore';
 import { getSessionTracker } from './data/session';
 import { syncAnalytics, track } from './data/analytics';
 import { maybeSeed } from './data/seed';
-import { keyFromOffset, keyShift, keyOf, offsetOf, dateOf } from './data/dates';
+import { keyFromOffset, keyShift, keyOf, offsetOf, dateOf, MONTHS } from './data/dates';
 import { words, entryKeys } from './data/selectors';
 import type { GlyphEvent } from './components/glyphs';
 import { mkEvent } from './components/glyphs';
@@ -34,8 +34,6 @@ maybeSeed();
 if (import.meta.env.DEV) {
   (window as unknown as Record<string, unknown>).__oscar = { getStore, getSyncEngine };
 }
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 function pastWhen(days: number): string {
   if (days === 1) return 'yesterday';

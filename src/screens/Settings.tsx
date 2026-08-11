@@ -6,15 +6,10 @@ import { useEffect, useRef, useState } from 'react';
 import { getStore, Store } from '../data/store';
 import { useStoreState } from '../data/useStore';
 import { track } from '../data/analytics';
-import { dateOf, todayKey } from '../data/dates';
+import { dateOf, todayKey, MONTHS_FULL } from '../data/dates';
 import { words, entryKeys } from '../data/selectors';
 import { makeBackup, parseBackup, mergeBackup } from '../data/backup';
 import { SyncPanel } from './SyncPanel';
-
-const MONTHS_FULL = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December',
-];
 
 const rowStyle = {
   display: 'flex',

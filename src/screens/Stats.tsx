@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import { useStoreState } from '../data/useStore';
-import { keyFromOffset, dateOf, keyOf } from '../data/dates';
+import { keyFromOffset, dateOf, keyOf, offsetOf, MONTHS, DAY_NAMES } from '../data/dates';
 import {
   words,
   entryKeys,
@@ -24,8 +24,8 @@ import { useTooltip } from '../components/Tooltip';
 import { ArrowLeftIcon, ArrowRightIcon, TrendIcon } from '../components/Icons';
 import { ramp, bestMix } from '../lib/colors';
 
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const WEEKDAYS_FULL = ['Sundays', 'Mondays', 'Tuesdays', 'Wednesdays', 'Thursdays', 'Fridays', 'Saturdays'];
+// "Sundays", "Mondays", … for the weekday-bars captions.
+const WEEKDAYS_FULL = DAY_NAMES.map((d) => d + 's');
 
 const cardStyle = {
   background: 'var(--surface)',
@@ -133,8 +133,6 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
   const msDays = milestoneDays(milestoneGroups(entries, times, hours, goal));
   const nowYear = new Date().getFullYear();
   const hmYear = hmYearSel ?? nowYear;
-  const today0 = new Date();
-  today0.setHours(0, 0, 0, 0);
   interface HmCell {
     bg: string;
     glow: string;
@@ -148,7 +146,7 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
   for (let i = 0; i < jan1.getDay(); i++) hmCells.push({ bg: 'transparent', glow: 'none', off: null, tip: null });
   let hmDays = 0;
   for (let d = new Date(jan1); d <= dec31; d.setDate(d.getDate() + 1)) {
-    const off = Math.round((d.getTime() - today0.getTime()) / 86400000);
+    const off = offsetOf(keyOf(d));
     if (d.getDate() === 1) hmMonths.push({ label: MONTHS[d.getMonth()], left: Math.floor(hmCells.length / 7) * 10 + 'px' });
     if (off > 0) {
       hmCells.push({ bg: 'color-mix(in srgb, var(--fg) 4%, transparent)', glow: 'none', off: null, tip: null });

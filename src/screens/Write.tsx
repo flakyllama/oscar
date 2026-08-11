@@ -6,7 +6,7 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 import { getStore } from '../data/store';
 import { getSessionTracker } from '../data/session';
 import { useStoreState } from '../data/useStore';
-import { keyFromOffset, dateOf } from '../data/dates';
+import { keyFromOffset, dateOf, MONTHS, DAY_NAMES } from '../data/dates';
 import { words, currentStreak } from '../data/selectors';
 import { celebrationsFor } from '../data/milestones';
 import { mkEvent, type GlyphEvent } from '../components/glyphs';
@@ -14,9 +14,6 @@ import { PixelTile, type PixelTileHandle } from '../components/PixelTile';
 import { CalendarPopover } from '../components/CalendarPopover';
 import { useTooltip } from '../components/Tooltip';
 import { ArrowLeftIcon, ArrowRightIcon, ClockIcon, WordsIcon, FlameIcon } from '../components/Icons';
-
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 // Top padding of the editor column, i.e. the viewport-y where the pixel
 // tile sits. The welcome hand-off flies its tile here, so the value is

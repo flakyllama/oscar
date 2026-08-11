@@ -77,3 +77,13 @@ describe('daysBetween / offsetOf / keyShift', () => {
     expect(todayKey(new Date(2026, 6, 16, 23, 59))).toBe('2026-07-16');
   });
 });
+
+describe('calendar vocabulary', () => {
+  it('keeps the short and full name tables aligned', async () => {
+    const { MONTHS, MONTHS_FULL, DAY_NAMES, DAY_NAMES_SHORT } = await import('./dates');
+    expect(MONTHS).toHaveLength(12);
+    expect(DAY_NAMES).toHaveLength(7);
+    MONTHS.forEach((m, i) => expect(MONTHS_FULL[i].startsWith(m.slice(0, 3))).toBe(true));
+    DAY_NAMES_SHORT.forEach((d, i) => expect(DAY_NAMES[i].startsWith(d)).toBe(true));
+  });
+});

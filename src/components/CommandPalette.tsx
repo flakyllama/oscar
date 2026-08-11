@@ -3,6 +3,7 @@
 // hover and ↑↓, Enter runs.
 
 import { useEffect, useRef, useState } from 'react';
+import { MONTHS, MONTHS_FULL, DAY_NAMES } from '../data/dates';
 import { useFocusTrap } from './useFocusTrap';
 
 export interface PaletteAction {
@@ -24,7 +25,7 @@ export function parseDateQuery(q: string, now: Date = new Date()): Date | null {
     d.setDate(d.getDate() - 1);
     return d;
   }
-  const dows = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+  const dows = DAY_NAMES.map((n) => n.toLowerCase());
   const mdow = q.match(/^(?:last\s+)?([a-z]{3,})$/);
   if (mdow) {
     const di = dows.findIndex((n) => n.startsWith(mdow[1]));
@@ -34,7 +35,7 @@ export function parseDateQuery(q: string, now: Date = new Date()): Date | null {
       return d;
     }
   }
-  const mons = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const mons = MONTHS_FULL.map((n) => n.toLowerCase());
   let m = q.match(/^([a-z]{3,})\s+(\d{1,2})(?:,?\s+(\d{4}))?$/);
   let mi = -1;
   let day = 0;
@@ -63,9 +64,6 @@ export interface CommandPaletteProps {
   onClose: () => void;
   onGoDate: (d: Date) => void;
 }
-
-const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 export function CommandPalette({ actions, onClose, onGoDate }: CommandPaletteProps) {
   const [query, setQuery] = useState('');

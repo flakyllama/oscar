@@ -50,3 +50,18 @@ export function daysBetween(a: DayKey, b: DayKey): number {
 export function offsetOf(key: DayKey, now: Date = new Date()): number {
   return daysBetween(todayKey(now), key);
 }
+
+// ── Calendar vocabulary ─────────────────────────────────────────
+// The one home for month/weekday names, so screens don't redeclare
+// them (they used to exist in nine files).
+
+export const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+export const MONTHS_FULL = [
+  'January', 'February', 'March', 'April', 'May', 'June',
+  'July', 'August', 'September', 'October', 'November', 'December',
+];
+
+export const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+export const DAY_NAMES_SHORT = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];

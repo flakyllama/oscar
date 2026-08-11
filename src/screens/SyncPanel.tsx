@@ -8,10 +8,8 @@ import { getStore } from '../data/store';
 import { useStoreState } from '../data/useStore';
 import { track } from '../data/analytics';
 import { isHandheld } from '../data/device';
-import { dateOf } from '../data/dates';
+import { dateOf, MONTHS } from '../data/dates';
 import { getSyncEngine } from '../sync/engine';
-
-const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
 const card: CSSProperties = {
   display: 'flex',
