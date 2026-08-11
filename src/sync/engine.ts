@@ -38,9 +38,15 @@ const emptySettings = (local: SyncSide): SyncSettings => ({
 });
 
 export class SyncEngine {
-  // The store-facing seam: the real store in the app, an in-memory
-  // adapter in engine.test.ts.
-  constructor(private port: StorePort = defaultStorePort()) {}
+  // Both seams are constructor-injected: the store the engine reads and
+  // writes, and (tests only) a pre-built target to adopt on start()
+  // instead of restoring a persisted one. Nothing in the connect/*
+  // surface can hand the engine a target that wouldn't survive a
+  // reload.
+  constructor(
+    private port: StorePort = defaultStorePort(),
+    private initialTarget: SyncTarget | null = null,
+  ) {}
 
   private target: SyncTarget | null = null;
   private status: SyncStatus = {
@@ -56,6 +62,7 @@ export class SyncEngine {
   private lastSeenToken: string | number = 0;
   private pushTimer: ReturnType<typeof setTimeout> | undefined;
   private pollTimer: ReturnType<typeof setInterval> | undefined;
+  private unsubscribe: (() => void) | undefined;
   private started = false;
 
   subscribe = (fn: () => void) => {
@@ -81,13 +88,14 @@ export class SyncEngine {
     this.started = true;
     // Restore whichever backend was connected (cloud takes precedence).
     try {
-      const restored = (await CloudSyncTarget.restore()) || (await FileSyncTarget.restore(this.port));
-      if (restored) await this.adopt(restored, false);
+      const restored =
+        this.initialTarget ?? (await CloudSyncTarget.restore()) ?? (await FileSyncTarget.restore(this.port));
+      if (restored) await this.adopt(restored, !!this.initialTarget);
     } catch {
       // Nothing restorable — stay disconnected.
     }
 
-    this.port.subscribe(() => {
+    this.unsubscribe = this.port.subscribe(() => {
       if (!this.target || this.status.needsPermission) return;
       if (!this.port.hasPending()) return;
       clearTimeout(this.pushTimer);
@@ -105,6 +113,9 @@ export class SyncEngine {
   stop() {
     clearInterval(this.pollTimer);
     clearTimeout(this.pushTimer);
+    this.unsubscribe?.();
+    this.unsubscribe = undefined;
+    this.started = false;
   }
 
   // ── Connect / disconnect ────────────────────────────────────
@@ -116,10 +127,6 @@ export class SyncEngine {
   async connectFileExisting() {
     const t = await FileSyncTarget.openExisting(this.port);
     if (t) await this.adopt(t, true);
-  }
-  // Adopt an already-built target (tests plug an in-memory one in here).
-  async connectTarget(target: SyncTarget) {
-    await this.adopt(target, true);
   }
   async connectCloudNew(endpoint: string) {
     await this.adopt(await CloudSyncTarget.createNew(endpoint), true);

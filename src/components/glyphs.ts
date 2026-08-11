@@ -1,5 +1,11 @@
 // The tile glyph inventory — bitmaps, colors, priorities and animation
-// frames copied verbatim from the Oscar.dc.html prototype.
+// frames copied verbatim from the Oscar.dc.html prototype. The names
+// themselves live in data/glyphNames so the data layer can speak them
+// without pulling in this presentation table; they're re-exported here
+// for the components that already import from this module.
+
+import type { GlyphName } from '../data/glyphNames';
+export type { GlyphName } from '../data/glyphNames';
 
 export const GLYPHS: Record<string, string[]> = {
   smiley: ['00000000', '00100100', '00100100', '00000000', '00000000', '01000010', '00111100', '00000000'],
@@ -46,29 +52,6 @@ export const GLYPHS: Record<string, string[]> = {
   ring2: ['00000000', '01111110', '01000010', '01000010', '01000010', '01000010', '01111110', '00000000'],
   ring3: ['11111111', '10000001', '10000001', '10000001', '10000001', '10000001', '10000001', '11111111'],
 };
-
-export type GlyphName =
-  | 'smiley'
-  | 'flame'
-  | 'check'
-  | 'sun'
-  | 'heart'
-  | 'moon'
-  | 'welcome back'
-  | 'confetti'
-  | 'medal'
-  | 'trophy'
-  | 'cake'
-  | 'star'
-  | 'gem'
-  | 'bolt'
-  | 'hourglass'
-  | 'bat'
-  | 'confetti ball'
-  | 'idle'
-  | 'lock'
-  | 'lockOpen'
-  | 'lockDeny';
 
 export const GLYPH_COLOR: Record<string, string> = {
   check: 'var(--z2)',

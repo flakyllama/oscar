@@ -43,9 +43,10 @@ screen, arbitrated by priority.
 _Avoid_: Animation, reward
 
 **Glyph**:
-An 8×8 bitmap the pixel tile can show (flame, heart, medal…). Bitmaps,
-colours and priorities are presentation, in `src/components/glyphs.ts`;
-the data layer refers to glyphs by name only.
+An 8×8 bitmap the pixel tile can show (flame, heart, medal…). The names
+are a leaf module (`src/data/glyphNames.ts`) so the data layer can speak
+them; bitmaps, colours and priorities are presentation, in
+`src/components/glyphs.ts`, which the data layer never imports.
 
 ### Sync
 

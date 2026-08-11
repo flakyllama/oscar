@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { SyncEngine } from './engine';
 import { storePort, type StorePort } from './port';
 import { Store } from '../data/store';
@@ -59,10 +59,23 @@ class MemTarget implements SyncTarget {
   async teardown() {}
 }
 
-async function connectedEngine(store: Store, target: SyncTarget) {
-  const engine = new SyncEngine(storePort(store));
-  await engine.connectTarget(target);
+// The engine adopts its target through the constructor, so tests never
+// need a connect path of their own. stop() afterwards drops the poll
+// timer and the store subscription so engines can't sync across tests.
+const live: SyncEngine[] = [];
+afterEach(() => {
+  live.splice(0).forEach((e) => e.stop());
+});
+
+async function startedEngine(port: StorePort, target: SyncTarget) {
+  const engine = new SyncEngine(port, target);
+  live.push(engine);
+  await engine.start();
   return engine;
+}
+
+async function connectedEngine(store: Store, target: SyncTarget) {
+  return startedEngine(storePort(store), target);
 }
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -96,8 +109,7 @@ describe('SyncEngine — pull → merge → apply → push', () => {
 
     b.setEntry('2026-06-02', 'written on B');
     await engineB.syncNow();
-    const engineA = new SyncEngine(storePort(a));
-    await engineA.connectTarget(target);
+    await connectedEngine(a, target);
     expect(a.getSnapshot().entries['2026-06-02']).toBe('written on B');
   });
 
@@ -217,8 +229,7 @@ describe('SyncEngine — gates', () => {
       openFromSync: async <T,>(p: unknown) => p as T,
       deviceId: () => 'test',
     };
-    const engine = new SyncEngine(lockedPort);
-    await engine.connectTarget(target);
+    await startedEngine(lockedPort, target);
     expect(target.pulls).toBe(0);
     expect(target.pushes).toBe(0);
   });

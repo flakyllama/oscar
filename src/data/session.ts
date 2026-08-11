@@ -48,8 +48,10 @@ export class SessionTracker {
 
   noteTyping(dayKey: string, wordCount: number) {
     const now = Date.now();
-    this.lastTypeAt = now;
+    // Finalize a session on the previous day BEFORE this keystroke's
+    // timestamp lands, so its end is the last keystroke on that day.
     if (this.session && this.session.dayKey !== dayKey) this.flush();
+    this.lastTypeAt = now;
     if (!this.session) {
       // The keystroke that opens a session already added a word;
       // starting one below keeps that word inside the session.

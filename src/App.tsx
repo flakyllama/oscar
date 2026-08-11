@@ -67,6 +67,7 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
 
   const taRef = useRef<HTMLTextAreaElement>(null);
   const flip = useRef(false);
+  const offsetRef = useRef(0); // mirrors `offset` for handlers that fire between renders
   const saveErrTimer = useRef<ReturnType<typeof setTimeout>>();
   const noticeTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -137,10 +138,22 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
   // keeps its active-day gate current (seconds accrue only while the
   // typed day's editor is showing).
   useEffect(() => {
+    getSessionTracker().setActiveDay(view === 'editor' ? keyFromOffset(offset) : null);
+  }, [view, offset]);
+
+  // The session clock runs while the shell is mounted. On unmount (the
+  // journal locks, or the welcome flow takes over) accrual stops at
+  // once and whatever was open is finalized with its real end time,
+  // rather than ticking on against a sealed journal.
+  useEffect(() => {
     const tracker = getSessionTracker();
     tracker.start();
-    tracker.setActiveDay(view === 'editor' ? keyFromOffset(offset) : null);
-  }, [view, offset]);
+    return () => {
+      tracker.setActiveDay(null);
+      tracker.flush();
+      tracker.stop();
+    };
+  }, []);
 
   // ── Navigation ──────────────────────────────────────────────
   // The one verb every view change goes through. It owns the shared
@@ -152,7 +165,12 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
       setPaletteOpen(false);
       setCalOpen(false);
       setPostWelcome(false);
-      if (opts.offset !== undefined) setOffset(opts.offset);
+      if (opts.offset !== undefined) {
+        // The ref moves synchronously so a key repeat handled before
+        // the re-render commits still sees the day we just moved to.
+        offsetRef.current = opts.offset;
+        setOffset(opts.offset);
+      }
       if (opts.anim) setDayAnim(opts.anim);
       else if (v === 'editor' && view !== 'editor') setDayAnim('db-fade .25s ease-out');
       setView(v);
@@ -163,14 +181,15 @@ function AppInner({ autoFocusEditor = false }: { autoFocusEditor?: boolean }) {
 
   const navDay = useCallback(
     (delta: number) => {
-      if (delta > 0 && offset >= 0) return;
+      const cur = offsetRef.current;
+      if (delta > 0 && cur >= 0) return;
       flip.current = !flip.current;
       navigate('editor', {
-        offset: Math.min(0, offset + delta),
+        offset: Math.min(0, cur + delta),
         anim: (delta < 0 ? 'db-in-l-' : 'db-in-r-') + (flip.current ? 'a' : 'b') + ' .28s ease-out',
       });
     },
-    [offset, navigate],
+    [navigate],
   );
 
   const jumpOffset = useCallback(

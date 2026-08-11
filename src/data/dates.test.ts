@@ -1,5 +1,17 @@
 import { describe, it, expect } from 'vitest';
-import { keyOf, todayKey, keyFromOffset, dateOf, keyShift, daysBetween, offsetOf } from './dates';
+import {
+  keyOf,
+  todayKey,
+  keyFromOffset,
+  dateOf,
+  keyShift,
+  daysBetween,
+  offsetOf,
+  MONTHS,
+  MONTHS_FULL,
+  DAY_NAMES,
+  DAY_NAMES_SHORT,
+} from './dates';
 
 describe('day keys are local-date based', () => {
   it('uses the local calendar date, not UTC (the prototype bug)', () => {
@@ -79,8 +91,7 @@ describe('daysBetween / offsetOf / keyShift', () => {
 });
 
 describe('calendar vocabulary', () => {
-  it('keeps the short and full name tables aligned', async () => {
-    const { MONTHS, MONTHS_FULL, DAY_NAMES, DAY_NAMES_SHORT } = await import('./dates');
+  it('keeps the short and full name tables aligned', () => {
     expect(MONTHS).toHaveLength(12);
     expect(DAY_NAMES).toHaveLength(7);
     MONTHS.forEach((m, i) => expect(MONTHS_FULL[i].startsWith(m.slice(0, 3))).toBe(true));

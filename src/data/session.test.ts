@@ -84,6 +84,22 @@ describe('SessionTracker', () => {
     t.stop();
   });
 
+  it('ends a rotated session at its own last keystroke, not the next day’s', () => {
+    const r = recorder();
+    const t = new SessionTracker(r.sink);
+    t.start();
+    t.noteTyping('2026-06-09', 1);
+    vi.advanceTimersByTime(3000);
+    t.noteTyping('2026-06-09', 40);
+    const lastTypeOn9th = Date.now();
+    // Tab left open for hours, then typing resumes on the next day.
+    vi.advanceTimersByTime(13 * 3600 * 1000);
+    t.noteTyping('2026-06-10', 1);
+    expect(r.sessions[0].dayKey).toBe('2026-06-09');
+    expect(r.sessions[0].end).toBe(lastTypeOn9th);
+    t.stop();
+  });
+
   it('drops sessions that added no words (deleting text only)', () => {
     const r = recorder();
     const t = new SessionTracker(r.sink);

@@ -110,6 +110,31 @@ describe('celebrationsFor — first words of the day', () => {
     const cs2 = celebrationsFor({ ...base, entries: five, dayKey: todayKey(NOON), newText: 'day six', now: NOON });
     expect(names(cs2)).not.toContain('flame');
   });
+
+  it('measures the streak at the edited day, not today', () => {
+    // A 14-day run ending today; filling a gap months back extends
+    // nothing, so it must not borrow today's streak for a flame.
+    const running = entriesAt([0, -1, -2, -3, -4, -5, -6, -7, -8, -9, -10, -11, -12, -13]);
+    const cs = celebrationsFor({
+      ...base,
+      entries: running,
+      dayKey: keyFromOffset(-90, NOON),
+      newText: 'filling an old gap',
+      now: NOON,
+    });
+    expect(names(cs)).not.toContain('flame');
+
+    // But completing a 7-day run that ends on the edited day does earn it.
+    const runToPastDay = entriesAt([-91, -92, -93, -94, -95, -96]);
+    const cs2 = celebrationsFor({
+      ...base,
+      entries: runToPastDay,
+      dayKey: keyFromOffset(-90, NOON),
+      newText: 'seventh of that run',
+      now: NOON,
+    });
+    expect(names(cs2)).toContain('flame');
+  });
 });
 
 describe('celebrationsFor — goal crossings', () => {

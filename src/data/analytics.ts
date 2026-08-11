@@ -64,7 +64,8 @@ function doNotTrack(): boolean {
 
 export interface AnalyticsTransport {
   // Load the tracker; call onReady once events can be delivered.
-  inject(onReady: () => void): void;
+  // Returns false if injection couldn't happen and should be retried.
+  inject(onReady: () => void): boolean | void;
   ready(): boolean;
   send(name: string, data: EventData): void;
 }
@@ -72,8 +73,10 @@ export interface AnalyticsTransport {
 // Production adapter: the Umami script tag.
 function umamiTransport(): AnalyticsTransport {
   return {
+    // Returns false when there's no document to inject into, so the
+    // caller can try again once one exists.
     inject(onReady) {
-      if (typeof document === 'undefined') return;
+      if (typeof document === 'undefined') return false;
       const s = document.createElement('script');
       s.async = true;
       s.src = SRC;
@@ -81,6 +84,7 @@ function umamiTransport(): AnalyticsTransport {
       s.setAttribute('data-do-not-track', 'true'); // belt-and-suspenders
       s.addEventListener('load', onReady);
       document.head.appendChild(s);
+      return true;
     },
     ready: () => typeof window !== 'undefined' && !!window.umami,
     send: (name, data) => window.umami?.track(name, data),
@@ -118,10 +122,9 @@ export function createAnalytics(deps: AnalyticsDeps) {
     // (the already-loaded script can't be unloaded, but it goes silent).
     syncAnalytics(enabled: boolean): void {
       consented = enabled && deps.configured() && !deps.doNotTrack();
-      if (consented && !injected) {
-        injected = true;
-        deps.transport.inject(flush);
-      }
+      // Only latch when the injection actually happened — a no-op
+      // injection (no document yet) must stay retryable.
+      if (consented && !injected) injected = deps.transport.inject(flush) !== false;
     },
     track(event: AnalyticsEvent): void {
       if (!consented) return;

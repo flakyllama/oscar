@@ -143,10 +143,11 @@ export function Stats({ onJump }: { onJump: (offset: number) => void }) {
   const hmMonths: { label: string; left: string }[] = [];
   const jan1 = new Date(hmYear, 0, 1);
   const dec31 = new Date(hmYear, 11, 31);
+  const hmToday = new Date(); // hoisted: 365 cells shouldn't each re-derive today
   for (let i = 0; i < jan1.getDay(); i++) hmCells.push({ bg: 'transparent', glow: 'none', off: null, tip: null });
   let hmDays = 0;
   for (let d = new Date(jan1); d <= dec31; d.setDate(d.getDate() + 1)) {
-    const off = offsetOf(keyOf(d));
+    const off = offsetOf(keyOf(d), hmToday);
     if (d.getDate() === 1) hmMonths.push({ label: MONTHS[d.getMonth()], left: Math.floor(hmCells.length / 7) * 10 + 'px' });
     if (off > 0) {
       hmCells.push({ bg: 'color-mix(in srgb, var(--fg) 4%, transparent)', glow: 'none', off: null, tip: null });

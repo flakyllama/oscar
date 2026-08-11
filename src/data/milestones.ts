@@ -10,7 +10,6 @@ import {
   totalWords,
   bestDayWords,
   longestStreak,
-  currentStreak,
   lifetimeCrossKey,
   streakCrossKey,
   spanDays,
@@ -18,7 +17,7 @@ import {
   type Times,
   type Hours,
 } from './selectors';
-import type { GlyphName } from '../components/glyphs';
+import type { GlyphName } from './glyphNames';
 
 // ── Thresholds — the one table ──────────────────────────────────
 
@@ -119,7 +118,7 @@ export function milestoneGroups(
         glyph: t === trophyAt ? 'trophy' : 'medal',
         label: t / 1000 + 'k words',
         earned: total >= t,
-        req: 'Reach ' + t.toLocaleString() + ' lifetime words',
+        req: 'Reach ' + t.toLocaleString('en-US') + ' lifetime words',
         when: dOf(lifetimeCrossKey(entries, t)),
       })),
     },
@@ -199,7 +198,7 @@ export function celebrationsFor(ctx: EditContext): Celebration[] {
 
     const newCount = entryKeys(after).length;
     const hit = COLLECTION_TARGETS.find((t) => t.count === newCount);
-    if (hit) out.push({ name: hit.glyph as GlyphName, ms: hit.glyph === 'gem' ? 4000 : 3600 });
+    if (hit) out.push({ name: hit.glyph, ms: hit.glyph === 'gem' ? 4000 : 3600 });
 
     const first = priorKeys[0];
     if (first) {
@@ -210,7 +209,9 @@ export function celebrationsFor(ctx: EditContext): Celebration[] {
 
     // Streaks are counted in days written, so they extend on first
     // words — weekly cadence, which covers every streak milestone.
-    const stk = currentStreak(after, now);
+    // Measured at the edited day, not today: filling an old gap only
+    // celebrates the run that day actually completes.
+    const stk = runEndingAt(after, dayKey);
     if (stk >= 7 && (stk % 7 === 0 || (STREAK_TARGETS as readonly number[]).includes(stk)))
       out.push({ name: 'flame', ms: 3200 });
   }
@@ -221,15 +222,23 @@ export function celebrationsFor(ctx: EditContext): Celebration[] {
     out.push({ name: daySeconds < QUICK_GOAL_MAX_SEC ? 'bolt' : 'confetti', ms: 3200 });
   if (goal > 0 && prevW < goal * 2 && newW >= goal * 2) out.push({ name: 'confetti ball', ms: 3600 });
 
+  // Lifetime total and best-other-day in ONE pass — this runs on every
+  // keystroke, so it must not scan the journal more than once.
+  let prevTotal = 0;
+  let prevBest = 0;
+  for (const k of Object.keys(entries)) {
+    const w = words(entries[k]);
+    prevTotal += w;
+    if (k !== dayKey && w > prevBest) prevBest = w;
+  }
+
   // Record day: edge-triggered when this edit makes today the best
   // day at or beyond the milestone's bar.
-  const prevBest = priorBestExcluding(entries, dayKey);
   const wasRecord = prevW > prevBest && prevW >= RECORD_DAY_WORDS;
   const isRecord = newW > prevBest && newW >= RECORD_DAY_WORDS;
   if (isRecord && !wasRecord) out.push({ name: 'heart', ms: 3000 });
 
   // Lifetime targets, trophy on the last.
-  const prevTotal = totalWords(entries);
   const newTotal = prevTotal - prevW + newW;
   const trophyAt = LIFETIME_TARGETS[LIFETIME_TARGETS.length - 1];
   for (const t of LIFETIME_TARGETS)
@@ -243,8 +252,14 @@ export function celebrationsFor(ctx: EditContext): Celebration[] {
   return out;
 }
 
-function priorBestExcluding(entries: Entries, dayKey: DayKey): number {
-  return Object.keys(entries)
-    .filter((k) => k !== dayKey)
-    .reduce((a, k) => Math.max(a, words(entries[k])), 0);
+// Consecutive written days ending at `dayKey` — the run this edit just
+// extended. (currentStreak only ever measures the run ending today.)
+function runEndingAt(entries: Entries, dayKey: DayKey): number {
+  let n = 0;
+  let k = dayKey;
+  while (words(entries[k]) > 0) {
+    n++;
+    k = keyShift(k, -1);
+  }
+  return n;
 }

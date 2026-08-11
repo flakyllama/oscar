@@ -69,7 +69,7 @@ export function CalendarPopover({ offset, entries, onJump }: CalendarPopoverProp
   }
   for (let day = 1; day <= daysInMonth; day++) {
     const d = new Date(vm.getFullYear(), vm.getMonth(), day);
-    const off = offsetOf(keyOf(d));
+    const off = offsetOf(keyOf(d), t0);
     const future = off > 0;
     const w = future ? 0 : words(entries[keyFromOffset(off)]);
     cells.push({

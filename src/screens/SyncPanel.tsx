@@ -106,7 +106,15 @@ export function SyncPanel() {
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
 
-  const pending = Object.keys(state.pendingSync).length;
+  // Day edits, plus the settings change the engine also counts as
+  // pending — read from the same predicate so the caption can't say
+  // "up to date" while a push is queued.
+  const pendingDays = Object.keys(state.pendingSync).length;
+  const pendingLabel = pendingDays
+    ? `${pendingDays} pending`
+    : state.pendingSettingsAt > 0
+      ? 'settings pending'
+      : '';
   const lastSyncAt = state.syncMeta.lastSyncAt;
   const needEndpoint = engine.cloudEndpointDefault() === '';
   const selfId = state.syncMeta.deviceId;
@@ -151,7 +159,7 @@ export function SyncPanel() {
       ? `${sync.label} — permission needed after reload`
       : (sync.kind === 'cloud' ? 'Cloud' : sync.label) +
         (lastSyncAt ? ` · synced ${agoLabel(lastSyncAt)}` : '') +
-        (pending ? ` · ${pending} pending` : sync.syncing ? ' · syncing…' : '');
+        (pendingLabel ? ` · ${pendingLabel}` : sync.syncing ? ' · syncing…' : '');
 
   const choosing = !sync.connected && !enteringKey;
   const devices = Object.values(state.devices).sort((a, b) => {
